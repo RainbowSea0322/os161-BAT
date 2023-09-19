@@ -1,0 +1,136 @@
+Step 4: running sys161
+
+sys161: System/161 release 2.0.3, compiled Sep 17 2022 09:27:01
+
+OS/161 base system version 1.99.08
+Copyright (c) 2000, 2001-2005, 2008-2011, 2013, 2014
+   President and Fellows of Harvard College.  All rights reserved.
+
+Put-your-group-name-here's system version 0 (DUMBVM #1)
+
+292k physical memory available
+Device probe...
+lamebus0 (system main bus)
+emu0 at lamebus0
+ltrace0 at lamebus0
+ltimer0 at lamebus0
+beep0 at ltimer0
+rtclock0 at ltimer0
+lrandom0 at lamebus0
+random0 at lrandom0
+lhd0 at lamebus0
+lhd1 at lamebus0
+lser0 at lamebus0
+con0 at lser0
+
+cpu0: MIPS/161 (System/161 2.x) features 0x0
+OS/161 kernel [? for menu]: q
+Shutting down.
+The system is halted.
+sys161: 964857967 cycles (31876748 run, 932981219 global-idle)
+sys161:   cpu0: 6109606 kern, 0 user, 0 idle; 7880 ll, 7880/0 sc, 34067 sync
+sys161: 1194 irqs 0 exns 0r/0w disk 2r/602w console 0r/0w/1m emufs 0r/0w net
+sys161: Elapsed real time: 37.576498 seconds (25.6772 mhz)
+sys161: Elapsed virtual time: 38.598608789 seconds (25 mhz)
+
+git log
+
+commit c440edb8e10a2b1225496b4e1be41f465b3c3ef0 (HEAD -> master, tag: asst1-start, origin/master)
+Author: Bill3710 <Bill3710@server.ca>
+Date:   Thu Sep 14 13:40:45 2023 -0700
+
+    Initial commit of os161 for CPEN331
+    
+git tag
+
+asst1-start
+
+
+Step 5:
+Question 1: The first line should be either 68 line in exceptation-mips.S : mips_utlb_handler or 86 line in exceptation-mips.S: mips_general_handler
+control transfer to the common_exception in 114 line in exceptation-mips.S then jump to the mips_trap in trap.c 126 line 153 and line 216
+The mips_traps seperate the interrapt and system call in line 153 and line 216. if is interrapts it will call mainbus_interrupt() at 188 line in trap.c;
+
+Question 2: systemcall start as 84 line in systemcalls-mips.S: mips_general_handler. The systemcalls are hold as a trap in mips_trap line 86
+
+Question 3: The common/libc includes some lib need to use in both kernal and user level. and the lib in userland/lib/libc is only use at the user-level
+
+Question 4: configure configures debug vs. optimize for userland and target platform， target machine. When the configure not running at the top of the tree, it will be invalid and you need/want rerun it. Also, if you want to run in the different hardware, you also need to rerun configure
+
+Question 5: The function use the instraction write by assembly is machine dependent. Make these functions seperation will help we prot to another machine and easy to find the code which we need to change.
+
+Question 6: According to the trapframe.h 40 -78, it use 37 uint32(4byte), and it total 37*4=148 bytes. this one need to store at useland 37 registers.
+
+Question 7: add or remove a device in the kernal config, change the kernal configuration option, or add or remove new source files to the kernel.
+
+Question 8: when change the header file inclusion or re-running config
+
+Question 9: run bmake for compile or recompile the kernel. run bmake install to install the program ~/root/os161 by copy the compiled kernel binary
+
+Question 10: add a line in 530 cmdtable to print "Hello world" line i.e. cmd_helloworld and add a function and use a kprintf to print the hello world.
+
+Question 11: standard utilities maybe use some syscall which not implement. The standard utilities may not provide strong isolation if standard not provide efficient time sharing.
+
+Question 12: return value of main is store as s0 register as the argument of exit system call in case exit() return.
+
+Qusetion 13: 1. add a new define in src/build/install/include/kern/syscall.h with a unique number
+	     2. define a new function in src/kern/main/main.c to implement the syscall
+	     3. modify the kern/arch/mips/syscall.c on line 102 add a case for new system call
+	     4. rerun the bmake and bmake install, re-complie the kern with new syscall
+
+
+
+Step 7: 
+Question 14: it start at _start() at /sys161/main/start.S:54
+
+Question 15: the first instruction is: 54         addiu sp, sp, -24
+
+Question 16: (gdb) info breakpoint
+Num     Type           Disp Enb Address    What
+1       breakpoint     keep y   0x80014a0c in menu at ../../main/menu.c:697
+2       breakpoint     keep y   0x800139e4 in kmain at ../../main/main.c:211
+
+Question 17: First, in _start, we save the return address, set up the boot stack, set stack frame on kernal stack, put the copy of  exception handler to first page of meomry, initialize the TLB,set up control bits, use the copy of the bootstring as arguemnt for kmain in line 215.
+
+Question 18: line 215 in start.S: jal kmain
+
+Question 19:  (gdb) list
+105                     GROUP_VERSION, buildconfig, buildversion);
+106             kprintf("\n");
+107
+108             /* Early initialization. */
+109             ram_bootstrap();
+110             proc_bootstrap();
+111             thread_bootstrap();
+112             hardclock_bootstrap();
+113             vfs_bootstrap();
+114             kheap_nextgeneration();
+
+
+Question 20: (gdb) p *bootcpu
+Cannot access memory at address 0x80000
+
+Question 21: (gdb) p *bootcpu
+$1 = {c_self = 0x8003af00, c_number = 0, c_hardware_number = 0, c_curthread = 0x8003bf80, c_zombies = {tl_head = {tln_prev = 0x0, tln_next = 0x8003af1c,
+      tln_self = 0x0}, tl_tail = {tln_prev = 0x8003af10, tln_next = 0x0, tln_self = 0x0}, tl_count = 0}, c_hardclocks = 0, c_spinlocks = 0,
+  c_isidle = false, c_runqueue = {tl_head = {tln_prev = 0x0, tln_next = 0x8003af44, tln_self = 0x0}, tl_tail = {tln_prev = 0x8003af38, tln_next = 0x0,
+      tln_self = 0x0}, tl_count = 0}, c_runqueue_lock = {splk_lock = 0, splk_holder = 0x0}, c_ipi_pending = 0, c_shootdown = {{
+      ts_placeholder = 0} <repeats 16 times>}, c_numshootdown = 0, c_ipi_lock = {splk_lock = 0, splk_holder = 0x0}}
+
+Question 22: (gdb) cpuarray allcpus
+0 cpus
+
+Question 23: (gdb) cpuarray allcpus
+1 cpus
+cpu 0:
+$1 = {c_self = 0x8003af00, c_number = 0, c_hardware_number = 0, c_curthread = 0x8003bf80,
+  c_zombies = {tl_head = {tln_prev = 0x0, tln_next = 0x8003af1c, tln_self = 0x0}, tl_tail = {
+      tln_prev = 0x8003af10, tln_next = 0x0, tln_self = 0x0}, tl_count = 0}, c_hardclocks = 1,
+  c_spinlocks = 0, c_isidle = false, c_runqueue = {tl_head = {tln_prev = 0x0,
+      tln_next = 0x8003af44, tln_self = 0x0}, tl_tail = {tln_prev = 0x8003af38, tln_next = 0x0,
+      tln_self = 0x0}, tl_count = 0}, c_runqueue_lock = {splk_lock = 0, splk_holder = 0x0},
+  c_ipi_pending = 0, c_shootdown = {{ts_placeholder = 0} <repeats 16 times>}, c_numshootdown = 0,
+  c_ipi_lock = {splk_lock = 0, splk_holder = 0x0}}
+
+
+
