@@ -1,0 +1,24 @@
+Step 2: 
+Question 1: When a thread exits/ calls thread_exit(), the thread is detached from the process, then check the stack guard bands, then switches the thread to Zombie state. The thread will be destroyed after call the thread_destroy.  
+When a thread sleeps, it queued on the wait channel and protected by the spinlock. First, check whether it is in the interrupt handler or not. Then check whether the stack overflows or not, and add the thread to the tail of the wait channel, if grab a thread from the channel, switch to that thread, if not, cpu does nothing.
+
+Question 2: thread_switch() on kern/thread/thread.c line 558 to 560.
+context_swith in line 42 on kern/arch/mips/thread/switch.S
+
+Question 3: four thread states: S_RUN, S_READY, S_SLEEP, and S_ZOMBIE. S_RUN means this thread is running, S_READY means thread ready to run, S_SLEEP means thread is sleeping, and S_ZOMBIE means thread exited but not been deleted, the resource of the thread is wait to be cleaning.
+
+Question 4: Turn off interrupt mean the current proccess will work atomically and cannot be hardware interrupt. It accomplished by use the splhigh() to raise the Set Priority Level. It is essential to safeguard thread operations to guarantee their successful completion without being interrupted midway, and the thread_switch and thread_exit() can normally finsh.
+
+Question 5: When a thread wake up a sleep thread call the threadlist_remhead() and grad a thread in wc, and the sleeping thread call the thread_make_runnable() to change the state to the S_READY.
+
+Question 6: thread_switch() on line 560 in kern/thread/thread.c to choose another thread in a round robin fashion unless the sechdule on line 820 schdule() is implemented.
+
+Question 7: threadlist_remhead() is called in thread_switch() on line 642， threadlist in cpu and as arguement to threadlist_remhead() and grab first in line thread as next thread to run
+
+Question 8: hardclock() in thread.c call the thread_consider_migration() and schedule()(not implement yet), thread_consider_migration() move the thread to other idle CPU if current CPU is busy and other CPU is idle. schedule() should reshuffle the current CPU's run queue by job priority after achieve.
+
+Question 9: wchan_sleep() yields the cpu to another process, and current thread go to sleep
+wchan_wakeone() wake up one thread sleeping on a wait channel.
+A semaphore use wchan_sleep() for threads in a waiting state, waiting for a thread to release the semaphore to ensure that the thread doesn't engage in busy waiting and move to another thread. A semaphore usewchan_wakeone() to wake a sleeping thread, indicating that it can proceed once the count has been increased.
+
+Question 10: A wchan is protected by a spinlock to guarantee that the processes of putting a thread to sleep and waking it up are atomic.
