@@ -1,0 +1,60 @@
+Question 1: In elf.h line 83 to 86
+#define	ELFMAG0		0x7f
+#define	ELFMAG1		'E' (0x45)
+#define	ELFMAG2		'L' (0x4C)
+#define	ELFMAG3		'F' (0x46)
+
+The Magic number is number to identify the file type. 
+
+
+Question 2：
+UIO_USERISPACE, UIO_USERSPACE, and UIO_SYSSPACE are source/destinations in uiomove() operation, defined in uio.h
+UIO_USERSPACE: memory space for user data
+UIO_USERISPACE: memory space for user instruction (executable)
+UIO_SYSSPACE: memory space for kernel, we use UIO_SYSSPACE when we try to access kernel memory.
+
+Question 3:
+The memory read address is determined by a parameter passed into the load_segment(), vaddr_t vaddr. this virtual address is set to be the base address of iov inside the uio structure. load_segment() construct the structure uio from the inputs itself, so uio can be discarded after load_segment() finishes. So uio will be stored on stack during the execution of load_segment().
+
+Question 4:
+vfs_open() and vfs_close() are paired operations, we need to make sure the file is closed when we leave runprogram() to allow future vfs_open() on this particular file. This ensures efficient system resource management, upholds file integrity and data consistency, and avoids potential file access conflicts.
+
+Question 5:
+mips_usermode() in kern/arch/mips/locore/trap.c line 368. the spl0() called by mips_usermode() is machine independent, but mips_usermode() did extra operations that is specific to mips architecture. the entire fucntion is machine dependent.
+
+Question 6:
+The src/kern/vm/copyinout.c defined the copyin and copyout
+The common/libc/string/memmove.c: defined the memmove
+The copyin and copyout is implentended to cross user address sapce and kernel address space but memmove is not. The memmove only cross in same level (i.e. user to user or kernel to kernel) it cannot move user to kernel.
+We can't have a simple memmove like implementation for copyin/copyout, because that is not safe for kernel. If the memory copy is failed, we would like the kernel being able to keep running. copyin/copyout provides extra checks: copycheck() to make sure the user did things correctly. Also by using setjmp() before copy and longjmp() when copy fails, it will revert the state of kernel back to the time setjmp() is called, promise the kernel can keep running even this copy operation fails.
+
+Question 7:
+According to documentation of types.h userptr_t points to a one-byte struct _userptr, this is done to prevent mixing with other pointers.
+
+Question 8:
+numerical value of the exception code for a MIPS system call is ENOSYS, 1. in kern/include/kern/errno.h
+#define ENOSYS          1  
+
+Question 9:
+4 bytes per instruction in MIPS. syscall.c line 68 says trapframe need to increment by one instruction matches the increment operation in line 141 : tf->tf_epc += 4; .
+
+Question 10:
+In the current implementation of kill_curthread() in traps.c, it identifies the types of error user program have and prepare the corresponding signals. However, it just prints a error message and panic, the signal didn't actually being sent and there is no handler to actually kill the thread for us. 
+
+Question 11:
+If a system call has more than 4 arguments we need to store the extra arguments on user-level stack. For kernel to use those value we need to implement memory moving functions from user space to kernel space, such as copyin().
+
+Question 12:
+SYSCALL(sym, num) is defined in userland/lib/libc/arch/mips/syscall-mips.S. it is used to allow user simply input the syscall number and enters a common __syscall function used by all the system calls. One interface for all system calls, easier to use and hide the implementation of kernel.
+
+Question 13:
+mips instruction triggers the system call is: syscall. in syscalls-mips.S line 84
+
+Question 14:
+arg0 should be in a0; arg1 should be in a2,a3 combined; arg2 should be on user stack position sp+16. return value should be in v0,v1 combined.
+
+Question 15:
+kernel function to open a file is vfs_open(). when read a file VOP_READ() is called. To write to a file one should use VOP_WRITE(). an open file is represented as a vnode.
+
+Question 16:
+VOP_INCREF and VOP_DECREF atomically modifies the reference counter in a vnode, when the reference counter is about to hit 0, call VOP_RECLAIM.
