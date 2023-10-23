@@ -35,7 +35,8 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
-
+#include <clock.h>
+#include <copyinout.h>
 
 /*
  * System call dispatcher.
@@ -158,4 +159,37 @@ void
 enter_forked_process(struct trapframe *tf)
 {
 	(void)tf;
+}
+
+/*syscall of time, copy both user_seconds and user_nanoseconds if not NULL
+*/
+int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds){
+	struct timespec ts;
+	int err;
+		gettime(&ts);
+
+	if (user_seconds == NULL && user_nanoseconds == NULL) {
+		return 0;
+	} else if (user_seconds == NULL){ // if any one is NULL, copy another
+		err = copyout(&ts.tv_nsec, user_nanoseconds, sizeof(ts.tv_nsec));
+		if (err) {
+			return err;
+		}
+	} else if (user_nanoseconds == NULL){
+		err = copyout(&ts.tv_sec, user_seconds, sizeof(ts.tv_sec));
+		if (err) {
+			return err;
+		}
+	} else {// copy both user_seconds and user_nanoseconds
+		err = copyout(&ts.tv_sec, user_nanoseconds, sizeof(ts.tv_nsec));
+		if (err) {
+			return err;
+		}
+		err = copyout(&ts.tv_nsec, user_seconds, sizeof(ts.tv_nsec)); 
+		if (err) {
+			return err;
+		}
+	}
+
+	return 0;// OK
 }
