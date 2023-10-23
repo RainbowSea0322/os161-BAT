@@ -224,12 +224,12 @@ proc_create_runprogram(const char *name)
 
 	//create and init the file table
 	int result;
-	newproc->oft = ft_create();
-	if (newproc->oft == NULL) {
+	newproc->ft = ft_create();
+	if (newproc->ft == NULL) {
 		proc_destroy(newproc);
 		return NULL;
 	}
-	result = ft_init(newproc->oft);
+	result = ft_init(newproc->ft);
 	if (result) {
 		return NULL;
 	}
