@@ -11,7 +11,7 @@ struct open_file {
     int flag;
     int refcount;
     off_t offset;
-    struct lock *flock;
+    struct lock *file_lock;
 } open_file;
 
 struct file_table {
@@ -22,8 +22,8 @@ struct file_table {
 // function for open_file
 struct open_file * of_create (struct vnode *vn, int flag);
 void of_destroy(struct open_file *of);
-void open_file_incref(struct open_file *of);
-void open_file_decref(struct open_file *of);
+void of_incref(struct open_file *of);
+void of_decref(struct open_file *of);
 
 //function for file table
 struct file_table * ft_create (void);
