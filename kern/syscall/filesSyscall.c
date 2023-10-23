@@ -19,6 +19,7 @@
 #include <kern/reboot.h>
 #include <kern/seek.h>
 #include <kern/time.h>
+#include <file_table.h>
 //open filetable not implenment yet
 
 int open(const char *filename, int flags, mode_t mode, int *retval){

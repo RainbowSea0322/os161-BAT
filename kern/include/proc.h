@@ -38,6 +38,11 @@
 
 #include <spinlock.h>
 #include <thread.h> /* required for struct threadarray */
+#include <limits.h>
+#include <file_table.h>
+
+struct open_file;
+struct open_file_table;
 
 struct addrspace;
 struct vnode;
@@ -56,6 +61,7 @@ struct proc {
 	/* VFS */
 	struct vnode *p_cwd;		/* current working directory */
 
+	struct file_table *ft;
 	/* add more material here as needed */
 };
 

@@ -48,6 +48,9 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <file_table.h>
+#include <synch.h>
+
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -217,6 +220,19 @@ proc_create_runprogram(const char *name)
 		newproc->p_cwd = curproc->p_cwd;
 	}
 	spinlock_release(&curproc->p_lock);
+
+
+	//create and init the file table
+	int result;
+	newproc->oft = ft_create();
+	if (newproc->oft == NULL) {
+		proc_destroy(newproc);
+		return NULL;
+	}
+	result = ft_init(newproc->oft);
+	if (result) {
+		return NULL;
+	}
 
 	return newproc;
 }
