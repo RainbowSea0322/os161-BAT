@@ -172,6 +172,7 @@ proc_destroy(struct proc *proc)
 	spinlock_cleanup(&proc->p_lock);
 
 	kfree(proc->p_name);
+	ft_destroy(proc->ft);
 	kfree(proc);
 }
 
