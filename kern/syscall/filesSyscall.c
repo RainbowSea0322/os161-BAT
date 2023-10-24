@@ -296,6 +296,7 @@ int dup2(int oldfd, int newfd, int *retval){
         of_destroy(of_new);
     }
     curproc->ft->table[newfd] = of_old;
+    of_old -> refcount++;
     lock_release(of_old->file_lock);
     *retval = newfd;
     return 0;
