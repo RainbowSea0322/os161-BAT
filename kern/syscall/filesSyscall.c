@@ -26,42 +26,46 @@
 
 int open(const char *filename, int flags, mode_t mode, int *retval){
     int result;
-    char *dest;
+    char *kernel_dest;
     size_t *actual_len;
     struct vnode *vn;
     struct open_file *of;
 
-    dest = kmalloc(PATH_MAX);
-    if(dest == NULL){// fail to kmalloc
+    kernel_dest = kmalloc(PATH_MAX);
+    if (kernel_dest == null) {
+        *retval = -1;
         return ENOSPC;
     }
-
-    result = copyinstr(filename, dest, PATH_MAX, &actual_len);
+    // const_userptr_t usersrc, char *dest, size_t len, size_t *actual
+    result = copyinstr(filename, kernel_dest, PATH_MAX, actual_len);
     if (result) {//fail to call the copyinstr
-        kfree(dest);
+        kfree(kernel_dest);
+        *retval = -1;
         return result;
     }
-
-    result = vfs_open(dest, flags, mode, &vn);
+    // char *path, int openflags, mode_t mode, struct vnode **ret
+    result = vfs_open(kernel_dest, flags, mode, &vn);
     if (result) {//fail to call the vfs_open
-        kfree(dest);
+        kfree(kernel_dest);
+        *retval = -1;
         return result;
     }
 
     of = of_create(vn, flags);
     if (of == NULL) {// fail to create open file
-        kfree(dest);
+        kfree(kernel_dest);
         vfs_close(vn);
+        *retval = -1;
         return ENOSPC;
     }
-
+    // find a place in the table to save the of
     lock_acquire(curproc->ft->file_table_lock);
     for (int i = 0; i < OPEN_MAX; i++) {
         if (curproc->ft->table[i] == NULL) { // success and return the fd
             curproc->ft->table[i] = of;
-            kfree(dest);
-            lock_release(curproc->ft->file_table_lock);
             *retval = i;
+            lock_release(curproc->ft->file_table_lock);
+            kfree(kernel_dest);
             return 0;
         }
     }
@@ -69,7 +73,7 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
     //no place for this open file
     lock_release(curproc->ft->file_table_lock);
     of_destroy(of);
-    kfree(dest);
+    kfree(kernel_dest);
     return EMFILE;
 }
 
@@ -78,41 +82,65 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     int result; 
     struct iovec *iov;
     struct uio *uio;
+    char *kernel_buf;
+    size_t *actual_len;
 
+    // check fd valid
     if(fd < 0 || fd >= OPEN_MAX){
-        
+        *retval = -1;
         return EBADF;
     }
 
     lock_acquire(curproc->ft->file_table_lock);
-
+    // check open file exist
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        
+        *retval = -1;
         return EBADF;
-    }else{
-        of = curproc->ft->table[fd];
-        if (of->flag == O_WRONLY) {
-            lock_release(curproc->ft->file_table_lock);
-            
-            return EBADF;
-        }
-
-        lock_acquire(of->file_lock);
-        lock_release(curproc->ft->file_table_lock);
     }
 
-    uio_uinit(iov, uio, buf, buflen, of->offset, UIO_READ);
-    result = VOP_READ(of->vn, uio);
+    of = curproc->ft->table[fd];
+    // check open file permission
+    if (of->flag == O_WRONLY) {
+        lock_release(curproc->ft->file_table_lock);
+        *retval = -1;
+         return EBADF;
+    }
 
-    if (result) {// false to VOP_READ
+    // all checking pass, get the file lock and others can access the table now
+    lock_acquire(of->file_lock);
+    lock_release(curproc->ft->file_table_lock);
+
+    kernel_buf = kmalloc(buflen);
+    if (kernel_buf == NULL) {
         lock_release(of->file_lock);
+        *retval = -1;
+        return ENOSPC;
+    }
+    // const_userptr_t usersrc, char *dest, size_t len, size_t *actual
+    result = copyinstr(buf, kernel_buf, buflen, actual_len);
+    if (result) {
+        lock_release(of->file_lock);
+        kfree(kernel_buf);
+        *retval = -1;
         return result;
     }
+    // struct iovec *, struct uio *, void *kbuf, size_t len, off_t pos, enum uio_rw rw
+    uio_kinit(iov, uio, kernel_buf, buflen, of->offset, UIO_READ);
 
+    result = VOP_READ(of->vn, uio);
+    if (result) {// false to VOP_READ
+        lock_release(of->file_lock);
+        kfree(kernel_buf);
+        *retval = -1;
+        return result;
+    }
+    // calculate size of actual reading size
     *retval = (uio->uio_offset) - (of->offset);
+    // synchronize open file offset
     of->offset = uio->uio_offset;
     lock_release(of->file_lock);
+    kfree(kernel_buf);
     return 0;
 }
 
@@ -121,47 +149,66 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
     int result; 
     struct iovec *iov;
     struct uio *uio;
-
+    char *kernel_buf;
+    size_t *actual_len;
+    // check fd valid
     if(fd < 0 || fd >= OPEN_MAX){
-        
+        *retval = -1;
         return EBADF;
     }
 
     lock_acquire(curproc->ft->file_table_lock);
-
+    // check open file exist
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        
+        *retval = -1;
         return EBADF;
-    }else{
-        of = curproc->ft->table[fd];
-        if (of->flag == O_RDONLY) {
-            lock_release(curproc->ft->file_table_lock);
-            
-            return EBADF;
-        }
-
-        lock_acquire(of->file_lock);
-        lock_release(curproc->ft->file_table_lock);
     }
-
-    uio_uinit(iov, uio, buf, buflen, of->offset, UIO_WRITE);
+    of = curproc->ft->table[fd];
+    // check open file permission
+    if (of->flag == O_RDONLY) {
+        lock_release(curproc->ft->file_table_lock);
+        *retval = -1;
+        return EBADF;
+    }
+    // all checks pass
+    lock_acquire(of->file_lock);
+    lock_release(curproc->ft->file_table_lock);
+    
+    kernel_buf = kmalloc(nbytes);
+    if (kernel_buf == NULL) {
+        lock_release(of->file_lock);
+        *retval = -1;
+        return ENOSPC;
+    }
+    // const_userptr_t usersrc, char *dest, size_t len, size_t *actual
+    result = copyinstr(buf, kernel_buf, nbytes, actual_len);
+    if (result) {
+        lock_release(of->file_lock);
+        kfree(kernel_buf);
+        *retval = -1;
+        return result;
+    }
+    // struct iovec *, struct uio *, void *kbuf, size_t len, off_t pos, enum uio_rw rw
+    uio_kinit(iov, uio, kernel_buf, nbytes, of->offset, UIO_WRITE);
     result = VOP_WRITE(of->vn, uio);
-
     if (result) {//fail to VOP_WRITE
         lock_release(of->file_lock);
+        kfree(kernel_buf);
+        *retval = -1;
         return result;
     }
 
     *retval = (uio->uio_offset) - (of->offset);
     of->offset = uio->uio_offset;
     lock_release(of->file_lock);
+    kfree(kernel_buf);
     return 0;
 }
 
 int close(int fd, int *retval){
     if(fd < 0 || fd >= OPEN_MAX){
-        
+        *retval = -1;
         return EBADF;
     }
 
@@ -169,13 +216,13 @@ int close(int fd, int *retval){
 
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        
+        *retval = -1;
         return EBADF;
-    }else{
-        of_decref(curproc->ft->table[fd]);
-        curproc->ft->table[fd] = NULL;
     }
-
+        
+    of_decref(curproc->ft->table[fd]);
+    curproc->ft->table[fd] = NULL;
+    
     lock_release(curproc->oft->table_lock);
 
     return 0;
@@ -186,52 +233,79 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
     int result;
 
     if(fd < 0 || fd >= OPEN_MAX){
-        
+        *retval = -1;
         return EBADF;
     }
 
     lock_acquire(curproc->ft->file_table_lock);
 
-
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        
+        *retval = -1;
         return EBADF;
-    }else{
-        of = curproc->ft->table[fd];
-        lock_acquire(of->file_lock);
-        lock_release(curproc->ft->file_table_lock);
     }
 
+    of = curproc->ft->table[fd];
+    lock_acquire(of->file_lock);
+    lock_release(curproc->ft->file_table_lock);
+    
     if(whence == SEEK_SET){
-        of -> offset = pos;
+        // negativity check
+        if (pos < 0) {
+            lock_release(of->file_lock);
+            *retval = -1;
+            return EINVAL;
+        }
+        of->offset = pos;
     }else if(whence == SEEK_CUR){
-        of -> offset += pos;
+        if (of->offset + pos < 0) {
+            lock_release(of->file_lock);
+            *retval = -1;
+            return EINVAL;
+        }
+        of->offset += pos;
     }else if(whence == SEEK_END){
         struct stat *statbuf = kmalloc(sizeof(struct stat));
         result = VOP_STAT(of->vn, statbuf);
         if(result){//fail to VOP_STAT, if success, the statbuf should have vaule fot st_size
-            kfree(statbuf);
-            
             lock_release(of->file_lock);
-            return result;
-        }else{
-            of->offset = statbuf->st_size + pos;
             kfree(statbuf);
+            *retval = -1;
+            return result;
         }
-    }else{
+        if (statbuf->st_size + pos < 0) {
+            lock_release(of->file_lock);
+            kfree(statbuf);
+            *retval = -1;
+            return EINVAL;
+        }
+        of->offset = statbuf->st_size + pos;
+        kfree(statbuf);
+    } else{
+        // whence is invalid.
         lock_release(of->file_lock);
         return EINVAL;
     }
-
     *ret_pos = of->offset;
     lock_release(of->file_lock);
-
+    
     return 0;
 }
 
 int chdir(const char *pathname, int *retval){
-
+    char * kernel_path = kmalloc(PATH_MAX);
+    size_t *actual_len;
+    // const_userptr_t usersrc, char *dest, size_t len, size_t *actual
+    copyinstr(pathname, kernel_path, PATH_MAX, actual_len);
+    // char *path
+    result = vfs_chdir(char *kernel_path);
+    if (result) {
+        kfree(kernel_path);
+        *retval = -1;
+        return result;
+    }
+    kfree(kernel_path);
+    return 0;
 }
 
 int dup2(int oldfd, int newfd, int *retval){
@@ -239,42 +313,44 @@ int dup2(int oldfd, int newfd, int *retval){
     struct open_file *of_old;
     struct open_file *of_new;
     if (oldfd < 0 || oldfd >= OPEN_MAX || newfd < 0 || newfd >= OPEN_MAX) {
-        
+        *retval = -1;
         return EBADF;
     }
-
+    // only I can change the table content
     lock_acquire(curproc->ft->file_table_lock);
 
     if(curproc->ft->table[oldfd] == NULL){
-        
         lock_release(curproc->ft->file_table_lock);
+        *retval = -1;
         return EBADF;
     }
     of_old = curproc->ft->table[oldfd];
     lock_acquire(of_old->file_lock);
-
+    // new place is empty, no need to deal with it, simply copy the pointer
     if(curproc->ft->table[newfd] == NULL){
         lock_release(curproc->ft->file_table_lock);
         curproc->ft->table[newfd] = of_old;
+        of_old->refcount++;
         lock_release(of_old->file_lock);
         *retval = newfd;
         return 0;
     }
-
+    // already duplicate of each other, do nothing
     if (curproc->ft->table[oldfd] == curproc->ft->table[newfd]){
         lock_release(curproc->ft->file_table_lock);
         lock_acquire(of_old->file_lock);
         *retval = newfd;
         return 0;
     }
-
+    // hard case, need to close new places previous file before dup
     of_new = curproc->ft->table[newfd];
     lock_acquire(of_new->file_lock);
     lock_release(curproc->ft->file_table_lock);
-
+    // manually close the file without calling of_close, of_close() need the lock and will cause deadlock
     of_new->refcount--;
     if(of_new->refcount == 0){
         lock_release(of_new->file_lock);
+        // no one linking to this file, so its safe to be destroy after we released the lock
         of_destroy(of_new);
     }
     curproc->ft->table[newfd] = of_old;
@@ -285,5 +361,35 @@ int dup2(int oldfd, int newfd, int *retval){
 }
 
 int __getcwd(char *buf, size_t buflen, int *retval){
+    struct uio *uio;
+    struct iovec *iov;
+    char *kernel_buf; 
+    off_t pos = 0;
+    size_t *actual_len;
+    int result;
 
+    kernel_buf = kmalloc(buflen);
+    if (kernel_buf == NULL) {
+        *retval = -1;
+        return ENOSPC;
+    }
+    // struct iovec *, struct uio *, void *kbuf, size_t len, off_t pos, enum uio_rw rw
+    uio_kinit(iov, uio, kernel_buf, buflen, pos, UIO_READ);
+    // struct uio *uio
+    result = vfs_getcwd(uio);
+    if (result) {
+        kfree(kernel_buf);
+        *retval = -1;
+        return result;
+    }
+    // const void *src, userptr_t userdest, size_t len, size_t *actual
+    result = copyoutstr(kernel_buf, buf, buflen, actual_len);
+    if (result) {
+        kfree(kernel_buf);
+        *retval = -1;
+         return result;
+    }
+    *retval = *actual_len;
+    kfree(kernel_buf);
+    return 0;
 }

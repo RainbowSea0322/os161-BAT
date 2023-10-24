@@ -37,6 +37,7 @@
 #include <syscall.h>
 #include <clock.h>
 #include <copyinout.h>
+#include <endian.h>
 
 /*
  * System call dispatcher.
@@ -82,6 +83,7 @@ syscall(struct trapframe *tf)
 	int callno;
 	int32_t retval;
 	int err;
+	off_t ret_pos;
 
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
@@ -111,6 +113,57 @@ syscall(struct trapframe *tf)
 		break;
 
 	    /* Add stuff here */
+		case SYS_open:
+		// const char *filename, int flags, mode_t mode, int *retval
+		err = open(tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+		break;
+
+		case SYS_read:
+		// int fd, void *buf, size_t buflen, int *retval
+		err = read(tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+		break;
+
+		case SYS_write:
+		// int fd, const void *buf, size_t nbytes, int *retval
+		err = write(tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+		break;
+
+		case SYS_close:
+		// int fd, int *retval
+		err = close(tf->tf_a0, &retval);
+		break;
+
+		case SYS_lseek:
+		off_t my_pos; // combined value of a2,a3
+		int whence; // get value from user stack 
+
+		// uint32_t x1, uint32_t x2, uint64_t *y2
+		join32to64(tf->tf_a2, tf->tf_a3, &my_pos);
+		// const_userptr_t usersrc, void *dest, size_t len  
+		whence = copyin(tf->tf_sp + 16, &whence, 4);
+		// int fd, off_t pos, int whence, int *retval
+		err = lseek(tf->tf_a0, my_pos, my_whence, &ret_pos);
+		
+		// uint64_t x, uint32_t *y1, uint32_t *y2
+		split64to32(ret_pos, tf->tf_a0, tf->tf_a1);
+		retval = tf_a0; // avoid overwrite tf_a0 below
+		
+		break;
+
+		case SYS_chdir:
+		// const char *pathname, int *retval
+		err = chdir(tf->tf_a0, &retval);
+		break;
+
+		case SYS_dup2:
+		// int oldfd, int newfd, int *retval
+		err = dup2(tf->tf_a0, tf->tf_a1, &retval);
+		break;
+
+		case SYS___getcwd:
+		// char *buf, size_t buflen, int *retval
+		err = __getcwd(tf->tf_a0, tf->tf_a1, &retval)
+		break;
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);

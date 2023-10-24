@@ -37,20 +37,41 @@ void of_destroy(struct open_file *of)
     lock_destroy(of->flock);
     kfree(of);
 }
-
+// same structure as vnode_incref
 void of_incref(struct open_file *of){
+    // replace kassert with NULL check to deal with it softer
+    if (of = NULL) {
+        return;
+    }
     lock_acquire(of->file_lock);
     of->refcount++;
     lock_release(of->file_lock);
 }
-
+// same structure as vnode_decref
 void of_decref(struct open_file *of){
+    // need this bool value to execute destroy after lock_release, cause we will destroy the lock as well.
+    bool destroy;
+    
+    // replace kassert with NULL check to deal with it softer
+    if (of = NULL) {
+        return;
+    }
+
     lock_acquire(of->file_lock);
-    of->refcount--;
+
+    if (of->refcount > 1) {
+        of->refcount--;
+        destroy = false;
+    } else {
+        destroy = true;
+    }
     lock_release(of->file_lock);
+    if (destroy) {
+        of_destroy(of);
+    }
 }
 
-//file table function
+// file table function
 struct file_table * ft_create (void){
     struct open_file_table *ft;
     ft = kmalloc(sizeof(struct file_table));
@@ -59,7 +80,7 @@ struct file_table * ft_create (void){
     }
     ft->file_table_lock = lock_create("file_table_lock");
     if (ft->file_table_lock == NULL) {
-        kfree(of);
+        kfree(ft);
         return NULL;
     }
     for (int i = 0; i < OPEN_MAX; i++) {
@@ -83,14 +104,14 @@ void ft_destroy(struct file_table *ft){
         }
     }
 }
-
+// initialize standard in, standard out, and standard error to file descriptor 0, 1, 2
 int ft_init (filetable *ft){
     for (int i = 0; i < 3; i++){
         char con_path[32];
         struct vnode *vn;
         struct open_file *of;
         int result;
-
+        // console device attached to con:
 	    strcpy(con_path, "con:");
 
         if(i == STDIN_FILENO){
