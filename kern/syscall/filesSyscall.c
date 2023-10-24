@@ -26,63 +26,50 @@
 
 int open(const char *filename, int flags, mode_t mode, int *retval){
     int result;
-    char *file_name;
-    size_t *path_len;
+    char *dest;
+    size_t *actual_len;
     struct vnode *vn;
     struct open_file *of;
 
-    file_name = kmalloc(PATH_MAX);
-    if(file_name == NULL){
+    dest = kmalloc(PATH_MAX);
+    if(dest == NULL){// fail to kmalloc
         return ENOSPC;
     }
 
-    path_len = kmalloc(sizeof(size_t));
-    if (path_len == NULL) {
-        kfree(file_name);
-        return ENOSPC;
-    }   
-
-    result = copyinstr(filename, file_name, PATH_MAX, path_len);
-    if (result) {
-        kfree(path_len);
-        kfree(file_name);
+    result = copyinstr(filename, dest, PATH_MAX, &actual_len);
+    if (result) {//fail to call the copyinstr
+        kfree(dest);
         return result;
     }
 
-    result = vfs_open(file_name, flags, mode, &vn);
-    if (result) {
-        kfree(path_len);
-        kfree(file_name);
+    result = vfs_open(dest, flags, mode, &vn);
+    if (result) {//fail to call the vfs_open
+        kfree(dest);
         return result;
     }
 
-    of = open_file_create(vn, flags);
-    if (of == NULL) {
-        kfree(path_len);
-        kfree(file_name);
+    of = of_create(vn, flags);
+    if (of == NULL) {// fail to create open file
+        kfree(dest);
         vfs_close(vn);
         return ENOSPC;
     }
 
     lock_acquire(curproc->ft->file_table_lock);
     for (int i = 0; i < OPEN_MAX; i++) {
-        if (curproc->ft->table[i] == NULL) {
+        if (curproc->ft->table[i] == NULL) { // success and return the fd
             curproc->ft->table[i] = of;
-            kfree(file_name);
-            kfree(path_len);
-
+            kfree(dest);
             lock_release(curproc->ft->file_table_lock);
             *retval = i;
             return 0;
         }
     }
+
+    //no place for this open file
     lock_release(curproc->ft->file_table_lock);
-
-    open_file_destroy(of);
-    kfree(file_name);
-    kfree(path_len);
-
-    
+    of_destroy(of);
+    kfree(dest);
     return EMFILE;
 }
 
@@ -115,8 +102,6 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
         lock_release(curproc->ft->file_table_lock);
     }
 
-    iov = kmalloc(sizeof(struct iovec));
-    uio = kmalloc(sizeof(struct uio));
     uio_uinit(iov, uio, buf, buflen, of->offset, UIO_READ);
     result = VOP_READ(of->vn, uio);
 
@@ -160,8 +145,6 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
         lock_release(curproc->ft->file_table_lock);
     }
 
-    iov = kmalloc(sizeof(struct iovec));
-    uio = kmalloc(sizeof(struct uio));
     uio_uinit(iov, uio, buf, buflen, of->offset, UIO_WRITE);
     result = VOP_WRITE(of->vn, uio);
 
@@ -238,7 +221,6 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
         }
     }else{
         lock_release(of->file_lock);
-        
         return EINVAL;
     }
 
