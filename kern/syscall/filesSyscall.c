@@ -33,14 +33,14 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
 
     file_name = kmalloc(PATH_MAX);
     if(file_name == NULL){
-        *retval = -1;
+        
         return ENOSPC;
     }
 
     path_len = kmalloc(sizeof(size_t));
     if (path_len == NULL) {
         kfree(file_name);
-        *retval = -1;
+        
         return ENOSPC;
     }   
 
@@ -48,7 +48,7 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
     if (result) {
         kfree(path_len);
         kfree(file_name);
-        *retval = -1;
+        
         return result;
     }
 
@@ -56,7 +56,7 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
     if (result) {
         kfree(path_len);
         kfree(file_name);
-        *retval = -1;
+        
         return result;
     }
 
@@ -76,7 +76,8 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
             kfree(path_len);
 
             lock_release(curproc->ft->file_table_lock);
-            return i;
+            *retval = i;
+            return 0;
         }
     }
     lock_release(curproc->ft->file_table_lock);
@@ -85,18 +86,23 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
     kfree(file_name);
     kfree(path_len);
 
-    *retval = -1;
+    
     return EMFILE;
 }
 
 ssize_t read(int fd, void *buf, size_t buflen, int *retval){
+
+
+
+
+    
     struct open_file *of;
     int result; 
     struct iovec *iov;
     struct uio *uio;
 
     if(fd < 0 || fd >= OPEN_MAX){
-        *retval = -1;
+        
         return EBADF;
     }
 
@@ -104,13 +110,13 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
 
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        *retval = -1;
+        
         return EBADF;
     }else{
         of = curproc->ft->table[fd];
         if (of->flag == O_WRONLY) {
             lock_release(curproc->ft->file_table_lock);
-            *retval = -1;
+            
             return EBADF;
         }
 
@@ -125,7 +131,7 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
 
     if (result) {
         lock_release(of->file_lock);
-        *retval = -1;
+        
         return result;
     }
 
@@ -135,14 +141,18 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     return 0;
 }
 
-ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
+ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){// 
+
+
+
+
     struct open_file *of;
     int result; 
     struct iovec *iov;
     struct uio *uio;
 
     if(fd < 0 || fd >= OPEN_MAX){
-        *retval = -1;
+        
         return EBADF;
     }
 
@@ -150,13 +160,13 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
 
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        *retval = -1;
+        
         return EBADF;
     }else{
         of = curproc->ft->table[fd];
         if (of->flag == O_RDONLY) {
             lock_release(curproc->ft->file_table_lock);
-            *retval = -1;
+            
             return EBADF;
         }
 
@@ -171,8 +181,8 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
 
     if (result) {
         lock_release(of->file_lock);
-        *retval = -1;
-        return result;
+        *retval = result;
+        return 0;
     }
 
     *retval = (uio->uio_offset) - (of->offset);
@@ -183,7 +193,7 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
 
 int close(int fd, int *retval){
     if(fd < 0 || fd >= OPEN_MAX){
-        *retval = -1;
+        
         return EBADF;
     }
 
@@ -191,7 +201,7 @@ int close(int fd, int *retval){
 
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        *retval = -1;
+        
         return EBADF;
     }else{
         of_decref(curproc->ft->table[fd]);
@@ -208,7 +218,7 @@ off_t lseek(int fd, off_t pos, int whence, int *retval){
     int result;
 
     if(fd < 0 || fd >= OPEN_MAX){
-        *retval = -1;
+        
         return EBADF;
     }
 
@@ -217,7 +227,7 @@ off_t lseek(int fd, off_t pos, int whence, int *retval){
 
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        *retval = -1;
+        
         return EBADF;
     }else{
         of = curproc->ft->table[fd];
@@ -234,7 +244,7 @@ off_t lseek(int fd, off_t pos, int whence, int *retval){
         result = VOP_STAT(of->vn, statbuf);
         if(result){
             kfree(statbuf);
-            *retval = -1;
+            
             lock_release(of->file_lock);
             return result;
         }else{
@@ -243,7 +253,7 @@ off_t lseek(int fd, off_t pos, int whence, int *retval){
         }
     }else{
         lock_release(of->file_lock);
-        *retval = -1;
+        
         return EINVAL;
     }
 
@@ -262,14 +272,14 @@ int dup2(int oldfd, int newfd, int *retval){
     struct open_file *of_old;
     struct open_file *of_new;
     if (oldfd < 0 || oldfd >= OPEN_MAX || newfd < 0 || newfd >= OPEN_MAX) {
-        *retval = -1;
+        
         return EBADF;
     }
 
     lock_acquire(curproc->ft->file_table_lock);
 
     if(curproc->ft->table[oldfd] == NULL){
-        *retval = -1;
+        
         lock_release(curproc->ft->file_table_lock);
         return EBADF;
     }
@@ -280,13 +290,15 @@ int dup2(int oldfd, int newfd, int *retval){
         lock_release(curproc->ft->file_table_lock);
         curproc->ft->table[newfd] = of_old;
         lock_release(of_old->file_lock);
-        return newfd;
+        *retval = newfd;
+        return 0;
     }
 
     if (curproc->ft->table[oldfd] == curproc->ft->table[newfd]){
         lock_release(curproc->ft->file_table_lock);
         lock_acquire(of_old->file_lock);
-        return newfd;
+        *retval = newfd;
+        return 0;
     }
 
     of_new = curproc->ft->table[newfd];
@@ -300,7 +312,8 @@ int dup2(int oldfd, int newfd, int *retval){
     }
     curproc->ft->table[newfd] = of_old;
     lock_release(of_old->file_lock);
-    return newfd;
+    *retval = newfd;
+    return 0;
 }
 
 int __getcwd(char *buf, size_t buflen, int *retval){
