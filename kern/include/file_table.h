@@ -28,5 +28,5 @@ void of_decref(struct open_file *of);
 //function for file table
 struct file_table * ft_create (void);
 void ft_destroy(struct file_table *ft);
-int ft_init (filetable *ft);
+int ft_init (struct file_table *ft);
 #endif
