@@ -38,6 +38,8 @@
 #include <clock.h>
 #include <copyinout.h>
 #include <endian.h>
+#include <proc.h>
+#include <filesSyscall.h>
 
 /*
  * System call dispatcher.
