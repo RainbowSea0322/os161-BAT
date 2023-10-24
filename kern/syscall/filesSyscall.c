@@ -33,14 +33,12 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
 
     file_name = kmalloc(PATH_MAX);
     if(file_name == NULL){
-        
         return ENOSPC;
     }
 
     path_len = kmalloc(sizeof(size_t));
     if (path_len == NULL) {
         kfree(file_name);
-        
         return ENOSPC;
     }   
 
@@ -48,7 +46,6 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
     if (result) {
         kfree(path_len);
         kfree(file_name);
-        
         return result;
     }
 
@@ -56,7 +53,6 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
     if (result) {
         kfree(path_len);
         kfree(file_name);
-        
         return result;
     }
 
@@ -91,11 +87,6 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
 }
 
 ssize_t read(int fd, void *buf, size_t buflen, int *retval){
-
-
-
-
-    
     struct open_file *of;
     int result; 
     struct iovec *iov;
@@ -129,9 +120,8 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     uio_uinit(iov, uio, buf, buflen, of->offset, UIO_READ);
     result = VOP_READ(of->vn, uio);
 
-    if (result) {
+    if (result) {// false to VOP_READ
         lock_release(of->file_lock);
-        
         return result;
     }
 
@@ -142,10 +132,6 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
 }
 
 ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){// 
-
-
-
-
     struct open_file *of;
     int result; 
     struct iovec *iov;
@@ -179,10 +165,9 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
     uio_uinit(iov, uio, buf, buflen, of->offset, UIO_WRITE);
     result = VOP_WRITE(of->vn, uio);
 
-    if (result) {
+    if (result) {//fail to VOP_WRITE
         lock_release(of->file_lock);
-        *retval = result;
-        return 0;
+        return result;
     }
 
     *retval = (uio->uio_offset) - (of->offset);
@@ -213,7 +198,7 @@ int close(int fd, int *retval){
     return 0;
 }
 
-off_t lseek(int fd, off_t pos, int whence, int *retval){
+int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
     struct open_file *of;
     int result;
 
@@ -242,7 +227,7 @@ off_t lseek(int fd, off_t pos, int whence, int *retval){
     }else if(whence == SEEK_END){
         struct stat *statbuf = kmalloc(sizeof(struct stat));
         result = VOP_STAT(of->vn, statbuf);
-        if(result){
+        if(result){//fail to VOP_STAT, if success, the statbuf should have vaule fot st_size
             kfree(statbuf);
             
             lock_release(of->file_lock);
