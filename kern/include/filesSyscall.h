@@ -11,7 +11,7 @@
 
     int close(int fd, int *retval);
 
-    off_t lseek(int fd, off_t pos, int whence, int *retval);
+    int lseek(int fd, off_t pos, int whence, off_t* ret_pos);
 
     int chdir(const char *pathname, int *retval);
     
