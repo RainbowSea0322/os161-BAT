@@ -423,6 +423,7 @@ int dup2(int oldfd, int newfd, int *retval){
         *retval = -1;
         return EBADF;
     }
+
     // only I can change the table content
     lock_acquire(curproc->ft->file_table_lock);
 
@@ -445,7 +446,7 @@ int dup2(int oldfd, int newfd, int *retval){
     // already duplicate of each other, do nothing
     if (curproc->ft->table[oldfd] == curproc->ft->table[newfd]){
         lock_release(curproc->ft->file_table_lock);
-        lock_acquire(of_old->file_lock);
+        lock_release(of_old->file_lock);
         *retval = newfd;
         return 0;
     }
