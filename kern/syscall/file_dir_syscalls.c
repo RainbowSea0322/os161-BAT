@@ -38,7 +38,7 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
         return ENOSPC;
     }
 
-    actual_len = kmalloc(sizeof(size_t *));
+    actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
         kfree(kernel_dest);
         *retval = -1;
@@ -130,7 +130,7 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
         *retval = -1;
         return ENOSPC;
     }
-    actual_len = kmalloc(sizeof(size_t *));
+    actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
         lock_release(of->file_lock);
         *retval = -1;
@@ -146,7 +146,7 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
         return result;
     }
 
-    iov = kmalloc(sizeof(struct iovec *));
+    iov = kmalloc(sizeof(struct iovec));
     if (iov == NULL) {
         lock_release(of->file_lock);
         kfree(kernel_buf);
@@ -155,7 +155,7 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
         return ENOSPC;
     }
 
-    uio = kmalloc(sizeof(struct uio *));
+    uio = kmalloc(sizeof(struct uio));
     if (uio == NULL) {
         lock_release(of->file_lock);
         kfree(kernel_buf);
@@ -226,7 +226,7 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
         *retval = -1;
         return ENOSPC;
     }
-    actual_len = kmalloc(sizeof(size_t *));
+    actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
         lock_release(of->file_lock);
         kfree(kernel_buf);
@@ -243,7 +243,7 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
         return result;
     }
 
-    iov = kmalloc(sizeof(struct iovec *));
+    iov = kmalloc(sizeof(struct iovec));
     if (iov == NULL) {
         lock_release(of->file_lock);
         kfree(kernel_buf);
@@ -252,7 +252,7 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
         return ENOSPC;
     }
 
-    uio = kmalloc(sizeof(struct uio *));
+    uio = kmalloc(sizeof(struct uio));
     if (uio == NULL) {
         lock_release(of->file_lock);
         kfree(kernel_buf);
@@ -347,6 +347,11 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
         of->offset += pos;
     }else if(whence == SEEK_END){
         struct stat *statbuf = kmalloc(sizeof(struct stat));
+        if (statbuf == NULL) {
+            lock_release(of->file_lock);
+            join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+            return ENOSPC;
+        }
         result = VOP_STAT(of->vn, statbuf);
         if(result){//fail to VOP_STAT, if success, the statbuf should have vaule fot st_size
             lock_release(of->file_lock);
@@ -384,7 +389,7 @@ int chdir(const char *pathname, int *retval){
         return ENOSPC;
     }
 
-    actual_len = kmalloc(sizeof(size_t *));
+    actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
         kfree(kernel_path);
         *retval = -1;
@@ -476,14 +481,14 @@ int __getcwd(char *buf, size_t buflen, int *retval){
         return ENOSPC;
     }
 
-    iov = kmalloc(sizeof(struct iovec *));
+    iov = kmalloc(sizeof(struct iovec));
     if (iov == NULL) {
         kfree(kernel_buf);
         *retval = -1;
         return ENOSPC;
     }
 
-    uio = kmalloc(sizeof(struct uio *));
+    uio = kmalloc(sizeof(struct uio));
     if (uio == NULL) {
         kfree(kernel_buf);
         kfree(iov);
@@ -503,7 +508,7 @@ int __getcwd(char *buf, size_t buflen, int *retval){
         return result;
     }
 
-    actual_len = kmalloc(sizeof(size_t *));
+    actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
         kfree(kernel_buf);
         kfree(iov);
