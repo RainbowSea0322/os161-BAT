@@ -89,6 +89,8 @@ syscall(struct trapframe *tf)
 	off_t ret_pos;
 	off_t my_pos; // combined value of a2,a3
 	int my_whence; // get value from user stack
+	int temp_a0;
+	int temp_a1;
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
 	KASSERT(curthread->t_iplhigh_count == 0);
@@ -150,8 +152,8 @@ syscall(struct trapframe *tf)
 		err = lseek(tf->tf_a0, my_pos, my_whence, &ret_pos);
 		
 		// uint64_t x, uint32_t *y1, uint32_t *y2
-		split64to32((uint64_t)ret_pos, (uint32_t *)(&(tf->tf_a0)), (uint32_t *)(&(tf->tf_a1)));
-		retval = tf->tf_a0; // avoid overwrite tf_a0 below
+		split64to32((uint64_t)ret_pos, (uint32_t *)(&temp_a0), (uint32_t *)(&temp_a1));
+		retval = temp_a1; // avoid overwrite tf_a0 below
 		break;
 
 		case SYS_chdir:

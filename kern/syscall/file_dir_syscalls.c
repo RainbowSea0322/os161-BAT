@@ -91,7 +91,6 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
 }
 
 ssize_t read(int fd, void *buf, size_t buflen, int *retval){
-    kprintf("enter [read] file %d\n", fd);
     struct open_file *of;
     int result; 
     struct iovec *iov;
@@ -190,12 +189,10 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     kfree(actual_len);
     kfree(iov);
     kfree(uio);
-    kprintf("success [read] file %d\n", fd);
     return 0;
 }
 
 ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
-    // kprintf("enter [write] file %d\n", fd);
     struct open_file *of;
     int result; 
     struct iovec *iov;
@@ -289,7 +286,6 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
     kfree(actual_len);
     kfree(iov);
     kfree(uio);
-    // kprintf("success [write] file %d\n", fd);
     return 0;
 }
 
@@ -318,12 +314,9 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
     kprintf("enter [lseek] file %d\n", fd);
     struct open_file *of;
     int result;
-    // for error output
-    int a0 = -1;
-    int a1 = 0;
 
     if(fd < 0 || fd >= OPEN_MAX){
-        join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+        *ret_pos = -1;
         return EBADF;
     }
 
@@ -331,7 +324,7 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
 
     if (curproc->ft->table[fd] == NULL) {
         lock_release(curproc->ft->file_table_lock);
-        join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+        *ret_pos = -1;
         return EBADF;
     }
 
@@ -343,14 +336,14 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
         // negativity check
         if (pos < 0) {
             lock_release(of->file_lock);
-            join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+            *ret_pos = -1;
             return EINVAL;
         }
         of->offset = pos;
     }else if(whence == SEEK_CUR){
         if (of->offset + pos < 0) {
             lock_release(of->file_lock);
-            join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+            *ret_pos = -1;
             return EINVAL;
         }
         of->offset += pos;
@@ -358,20 +351,20 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
         struct stat *statbuf = kmalloc(sizeof(struct stat));
         if (statbuf == NULL) {
             lock_release(of->file_lock);
-            join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+            *ret_pos = -1;
             return ENOSPC;
         }
         result = VOP_STAT(of->vn, statbuf);
         if(result){//fail to VOP_STAT, if success, the statbuf should have vaule fot st_size
             lock_release(of->file_lock);
             kfree(statbuf);
-            join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+            *ret_pos = -1;
             return result;
         }
         if (statbuf->st_size + pos < 0) {
             lock_release(of->file_lock);
             kfree(statbuf);
-            join32to64((uint32_t)a0, (uint32_t)a1, (uint64_t *)ret_pos);
+            *ret_pos = -1;
             return EINVAL;
         }
         of->offset = statbuf->st_size + pos;
