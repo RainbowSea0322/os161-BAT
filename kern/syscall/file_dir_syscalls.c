@@ -159,7 +159,7 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     uio_kinit(iov, uio, kernel_buf, buflen, of->offset, UIO_READ);
 
     result = VOP_READ(of->vn, uio);
-    if (result) {// false to VOP_READ
+    if (result) { // false to VOP_READ
         lock_release(of->file_lock);
         kfree(kernel_buf);
         kfree(actual_len);
@@ -319,7 +319,6 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
         return EBADF;
     }
 
-
     lock_acquire(curproc->ft->file_table_lock);
 
     if (curproc->ft->table[fd] == NULL) {
@@ -331,7 +330,7 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
     of = curproc->ft->table[fd];
     lock_acquire(of->file_lock);
     
-    if (of->vn->vn_fs == 0) {//check vn_fs to check device
+    if (of->vn->vn_fs == 0) { //check vn_fs to check device
         // can't modify console devices
         lock_release(curproc->ft->file_table_lock);
         lock_release(of->file_lock);
