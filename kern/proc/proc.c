@@ -170,10 +170,9 @@ proc_destroy(struct proc *proc)
 
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
+	ft_destroy(proc->ft);
 
 	kfree(proc->p_name);
-	ft_destroy(proc->ft);
-	kfree(proc);
 }
 
 /*

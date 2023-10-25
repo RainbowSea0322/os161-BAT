@@ -714,5 +714,8 @@ menu(char *args)
 		kprintf("OS/161 kernel [? for menu]: ");
 		kgets(buf, sizeof(buf));
 		menu_execute(buf, 0);
+		while (1){
+			// for assignment 4, force blocking the menu thread
+		}
 	}
 }

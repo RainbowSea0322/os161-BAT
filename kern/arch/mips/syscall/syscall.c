@@ -39,7 +39,7 @@
 #include <copyinout.h>
 #include <endian.h>
 #include <proc.h>
-#include <filesSyscall.h>
+#include <file_dir_syscalls.h>
 
 /*
  * System call dispatcher.
@@ -85,8 +85,10 @@ syscall(struct trapframe *tf)
 	int callno;
 	int32_t retval;
 	int err;
+	//SYS_lseek
 	off_t ret_pos;
-
+	off_t my_pos; // combined value of a2,a3
+	int my_whence; // get value from user stack
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
 	KASSERT(curthread->t_iplhigh_count == 0);
@@ -117,17 +119,17 @@ syscall(struct trapframe *tf)
 	    /* Add stuff here */
 		case SYS_open:
 		// const char *filename, int flags, mode_t mode, int *retval
-		err = open(tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+		err = open((char *)tf->tf_a0, tf->tf_a1, (mode_t )tf->tf_a2, &retval);
 		break;
 
 		case SYS_read:
 		// int fd, void *buf, size_t buflen, int *retval
-		err = read(tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+		err = read(tf->tf_a0, (void *)tf->tf_a1, (size_t)tf->tf_a2, &retval);
 		break;
 
 		case SYS_write:
 		// int fd, const void *buf, size_t nbytes, int *retval
-		err = write(tf->tf_a0, tf->tf_a1, tf->tf_a2, &retval);
+		err = write(tf->tf_a0, (void *)tf->tf_a1, (size_t)tf->tf_a2, &retval);
 		break;
 
 		case SYS_close:
@@ -136,25 +138,25 @@ syscall(struct trapframe *tf)
 		break;
 
 		case SYS_lseek:
-		off_t my_pos; // combined value of a2,a3
-		int whence; // get value from user stack 
-
+	
 		// uint32_t x1, uint32_t x2, uint64_t *y2
-		join32to64(tf->tf_a2, tf->tf_a3, &my_pos);
+		join32to64((uint32_t)tf->tf_a2, (uint32_t)tf->tf_a3, (uint64_t *)(&my_pos));
 		// const_userptr_t usersrc, void *dest, size_t len  
-		whence = copyin(tf->tf_sp + 16, &whence, 4);
+		err = copyin((const_userptr_t)tf->tf_sp + 16, (void *)&my_whence, (size_t)4); // a integer is 32 bits which is 4 words in length
+		if (err) {
+			break;
+		}
 		// int fd, off_t pos, int whence, int *retval
 		err = lseek(tf->tf_a0, my_pos, my_whence, &ret_pos);
 		
 		// uint64_t x, uint32_t *y1, uint32_t *y2
-		split64to32(ret_pos, tf->tf_a0, tf->tf_a1);
-		retval = tf_a0; // avoid overwrite tf_a0 below
-		
+		split64to32((uint64_t)ret_pos, (uint32_t *)(&(tf->tf_a0)), (uint32_t *)(&(tf->tf_a1)));
+		retval = tf->tf_a0; // avoid overwrite tf_a0 below
 		break;
 
 		case SYS_chdir:
 		// const char *pathname, int *retval
-		err = chdir(tf->tf_a0, &retval);
+		err = chdir((char *)tf->tf_a0, &retval);
 		break;
 
 		case SYS_dup2:
@@ -164,7 +166,7 @@ syscall(struct trapframe *tf)
 
 		case SYS___getcwd:
 		// char *buf, size_t buflen, int *retval
-		err = __getcwd(tf->tf_a0, tf->tf_a1, &retval)
+		err = __getcwd((char *)tf->tf_a0, (size_t)tf->tf_a1, &retval);
 		break;
 
 	    default:
@@ -214,37 +216,4 @@ void
 enter_forked_process(struct trapframe *tf)
 {
 	(void)tf;
-}
-
-/*syscall of time, copy both user_seconds and user_nanoseconds if not NULL
-*/
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds){
-	struct timespec ts;
-	int err;
-		gettime(&ts);
-
-	if (user_seconds == NULL && user_nanoseconds == NULL) {
-		return 0;
-	} else if (user_seconds == NULL){ // if any one is NULL, copy another
-		err = copyout(&ts.tv_nsec, user_nanoseconds, sizeof(ts.tv_nsec));
-		if (err) {
-			return err;
-		}
-	} else if (user_nanoseconds == NULL){
-		err = copyout(&ts.tv_sec, user_seconds, sizeof(ts.tv_sec));
-		if (err) {
-			return err;
-		}
-	} else {// copy both user_seconds and user_nanoseconds
-		err = copyout(&ts.tv_sec, user_nanoseconds, sizeof(ts.tv_nsec));
-		if (err) {
-			return err;
-		}
-		err = copyout(&ts.tv_nsec, user_seconds, sizeof(ts.tv_nsec)); 
-		if (err) {
-			return err;
-		}
-	}
-
-	return 0;// OK
 }

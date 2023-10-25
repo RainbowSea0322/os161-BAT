@@ -17,7 +17,7 @@ struct open_file * of_create (struct vnode *vn, int flag){
     }
 
     of->file_lock = lock_create("file_lock");
-    if (of->flock == NULL) {
+    if (of->file_lock == NULL) {
         kfree(of);
         return NULL;
     }
@@ -34,13 +34,13 @@ void of_destroy(struct open_file *of)
 {
     vfs_close(of->vn);
 
-    lock_destroy(of->flock);
+    lock_destroy(of->file_lock);
     kfree(of);
 }
 // same structure as vnode_incref
 void of_incref(struct open_file *of){
     // replace kassert with NULL check to deal with it softer
-    if (of = NULL) {
+    if (of == NULL) {
         return;
     }
     lock_acquire(of->file_lock);
@@ -53,7 +53,7 @@ void of_decref(struct open_file *of){
     bool destroy;
     
     // replace kassert with NULL check to deal with it softer
-    if (of = NULL) {
+    if (of == NULL) {
         return;
     }
 
@@ -73,7 +73,7 @@ void of_decref(struct open_file *of){
 
 // file table function
 struct file_table * ft_create (void){
-    struct open_file_table *ft;
+    struct file_table *ft;
     ft = kmalloc(sizeof(struct file_table));
     if (ft == NULL) {
         return NULL;
@@ -99,13 +99,13 @@ void ft_destroy(struct file_table *ft){
 
     for (int i = 0; i < OPEN_MAX; i++) {
         if (ft->table[i] != NULL) {
-            open_file_decref(ft->table[i]);
+            of_decref(ft->table[i]);
             ft->table[i] = NULL;
         }
     }
 }
 // initialize standard in, standard out, and standard error to file descriptor 0, 1, 2
-int ft_init (filetable *ft){
+int ft_init (struct file_table *ft){
     for (int i = 0; i < 3; i++){
         char con_path[32];
         struct vnode *vn;
@@ -152,4 +152,5 @@ int ft_init (filetable *ft){
             ft->table[STDERR_FILENO] = of;
         }
     }
+    return 0;
 }
