@@ -330,6 +330,7 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
 
     of = curproc->ft->table[fd];
     lock_acquire(of->file_lock);
+    
     if (of->vn->vn_fs == 0) {//check vn_fs to check device
         // can't modify console devices
         lock_release(curproc->ft->file_table_lock);
