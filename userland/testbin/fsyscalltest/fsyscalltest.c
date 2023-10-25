@@ -247,7 +247,6 @@ simultaneous_write_test()
 	if (fd1<0) {
 		err(1, "%s: open for write", file1);
 	}
-
 	fd2 = open(file2, O_RDWR|O_CREAT|O_TRUNC, 0664);
 	if (fd2<0) {
 		err(1, "%s: open for write", file2);
@@ -270,7 +269,6 @@ simultaneous_write_test()
 	}
 
 	lseek_ret = lseek(fd2, seekpos, SEEK_SET);
-
 	if (lseek_ret != seekpos) {
 		err(1, "%s: lseek", file2);
 	}
@@ -281,7 +279,7 @@ simultaneous_write_test()
 		err(1, "%s: read", file1);
 	}	
 	readbuf[40] = 0;
-
+	
 	if (strcmp(readbuf, &writebuf1[seekpos]))
 		errx(1, "Buffer data mismatch for %s!", file1);
 	
@@ -308,6 +306,7 @@ simultaneous_write_test()
 	{
 		err(1, "%s: close", file2);
 	}
+
 }
 
 static void
