@@ -91,6 +91,7 @@ int open(const char *filename, int flags, mode_t mode, int *retval){
 }
 
 ssize_t read(int fd, void *buf, size_t buflen, int *retval){
+    kprintf("enter [read] file %d\n", fd);
     struct open_file *of;
     int result; 
     struct iovec *iov;
@@ -137,7 +138,10 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
         return ENOSPC;
     }
     // const_userptr_t usersrc, char *dest, size_t len, size_t *actual
-    result = copyinstr(buf, kernel_buf, buflen, actual_len);
+    
+    //result = copyinstr(buf, kernel_buf, buflen, actual_len);
+    result = copyin((const_userptr_t)buf, (void *)kernel_buf, buflen);
+
     if (result) {
         lock_release(of->file_lock);
         kfree(kernel_buf);
@@ -186,10 +190,12 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     kfree(actual_len);
     kfree(iov);
     kfree(uio);
+    kprintf("success [read] file %d\n", fd);
     return 0;
 }
 
-ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){// 
+ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
+    // kprintf("enter [write] file %d\n", fd);
     struct open_file *of;
     int result; 
     struct iovec *iov;
@@ -234,7 +240,10 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
         return ENOSPC;
     }
     // const_userptr_t usersrc, char *dest, size_t len, size_t *actual
-    result = copyinstr(buf, kernel_buf, nbytes, actual_len);
+
+    // result = copyinstr((const_userptr_t)buf, kernel_buf, nbytes, actual_len);
+    result = copyin((const_userptr_t)buf, (void *)kernel_buf, nbytes);
+
     if (result) {
         lock_release(of->file_lock);
         kfree(kernel_buf);
@@ -281,6 +290,7 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){//
     kfree(actual_len);
     kfree(iov);
     kfree(uio);
+    // kprintf("success [write] file %d\n", fd);
     return 0;
 }
 
@@ -302,11 +312,11 @@ int close(int fd, int *retval){
     curproc->ft->table[fd] = NULL;
     
     lock_release(curproc->ft->file_table_lock);
-
     return 0;
 }
 
 int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
+    kprintf("enter [lseek] file %d\n", fd);
     struct open_file *of;
     int result;
     // for error output
@@ -374,11 +384,12 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
     }
     *ret_pos = of->offset;
     lock_release(of->file_lock);
-    
+    kprintf("success [lseek] file %d\n", fd);
     return 0;
 }
 
 int chdir(const char *pathname, int *retval){
+    kprintf("enter [chdir] pathname %s\n", pathname);
     char * kernel_path;
     size_t *actual_len;
     int result;
@@ -413,10 +424,12 @@ int chdir(const char *pathname, int *retval){
     }
     kfree(kernel_path);
     kfree(actual_len);
+    kprintf("enter [chdir] pathname %s\n", pathname);
     return 0;
 }
 
 int dup2(int oldfd, int newfd, int *retval){
+    kprintf("enter [dup2] old %d, new %d\n", oldfd, newfd);
     struct open_file *of_old;
     struct open_file *of_new;
     if (oldfd < 0 || oldfd >= OPEN_MAX || newfd < 0 || newfd >= OPEN_MAX) {
@@ -440,6 +453,7 @@ int dup2(int oldfd, int newfd, int *retval){
         of_old->refcount++;
         lock_release(of_old->file_lock);
         *retval = newfd;
+        kprintf("success1 [dup2] old %d, new %d\n", oldfd, newfd);
         return 0;
     }
     // already duplicate of each other, do nothing
@@ -447,6 +461,7 @@ int dup2(int oldfd, int newfd, int *retval){
         lock_release(curproc->ft->file_table_lock);
         lock_acquire(of_old->file_lock);
         *retval = newfd;
+        kprintf("success2 [dup2] old %d, new %d\n", oldfd, newfd);
         return 0;
     }
     // hard case, need to close new places previous file before dup
@@ -464,10 +479,12 @@ int dup2(int oldfd, int newfd, int *retval){
     of_old -> refcount++;
     lock_release(of_old->file_lock);
     *retval = newfd;
+    kprintf("success3 [dup2] old %d, new %d\n", oldfd, newfd);
     return 0;
 }
 
 int __getcwd(char *buf, size_t buflen, int *retval){
+    kprintf("enter [__getcwd]\n");
     struct uio *uio;
     struct iovec *iov;
     char *kernel_buf; 
@@ -531,5 +548,6 @@ int __getcwd(char *buf, size_t buflen, int *retval){
     kfree(iov);
     kfree(uio);
     kfree(actual_len);
+    kprintf("success [__getcwd]\n");
     return 0;
 }
