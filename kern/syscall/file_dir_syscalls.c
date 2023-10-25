@@ -319,6 +319,7 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
         return EBADF;
     }
 
+
     lock_acquire(curproc->ft->file_table_lock);
 
     if (curproc->ft->table[fd] == NULL) {
@@ -329,6 +330,13 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
 
     of = curproc->ft->table[fd];
     lock_acquire(of->file_lock);
+    if (of->vn->vn_fs == 0) {//check vn_fs to check device
+        // can't modify console devices
+        lock_release(curproc->ft->file_table_lock);
+        lock_release(of->file_lock);
+        *ret_pos = -1;
+        return ESPIPE;
+    }
 
     // device check
     if (of == curproc->ft->table[STDIN_FILENO]||of == curproc->ft->table[STDOUT_FILENO]||of == curproc->ft->table[STDERR_FILENO]) {
@@ -336,7 +344,7 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
         lock_release(curproc->ft->file_table_lock);
         lock_release(of->file_lock);
         *ret_pos = -1;
-        return EINVAL;
+        return ESPIPE;
     }
 
     lock_release(curproc->ft->file_table_lock);
