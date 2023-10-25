@@ -114,7 +114,7 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
 
     of = curproc->ft->table[fd];
     // check open file permission
-    if (of->flag == O_WRONLY) {
+    if ((of->flag)%4 == O_WRONLY) {  // we only care the last 2 bit binary, filter out other flags
         lock_release(curproc->ft->file_table_lock);
         *retval = -1;
          return EBADF;
@@ -214,7 +214,7 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
     }
     of = curproc->ft->table[fd];
     // check open file permission
-    if (of->flag == O_RDONLY) {
+    if ((of->flag)%4 == O_RDONLY) {
         lock_release(curproc->ft->file_table_lock);
         *retval = -1;
         return EBADF;
@@ -329,6 +329,16 @@ int lseek(int fd, off_t pos, int whence, off_t* ret_pos){
 
     of = curproc->ft->table[fd];
     lock_acquire(of->file_lock);
+
+    // device check
+    if (of == curproc->ft->table[STDIN_FILENO]||of == curproc->ft->table[STDOUT_FILENO]||of == curproc->ft->table[STDERR_FILENO]) {
+        // can't modify console devices
+        lock_release(curproc->ft->file_table_lock);
+        lock_release(of->file_lock);
+        *ret_pos = -1;
+        return EINVAL;
+    }
+
     lock_release(curproc->ft->file_table_lock);
     
     if(whence == SEEK_SET){
