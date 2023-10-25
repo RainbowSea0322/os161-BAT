@@ -242,73 +242,72 @@ simultaneous_write_test()
 
 	file1 = "testfile1";
 	file2 = "testfile2";
-	printf("sim_test 1");
+
 	fd1 = open(file1, O_RDWR|O_CREAT|O_TRUNC, 0664);
 	if (fd1<0) {
 		err(1, "%s: open for write", file1);
 	}
-	printf("sim_test 2");
+
 	fd2 = open(file2, O_RDWR|O_CREAT|O_TRUNC, 0664);
 	if (fd2<0) {
 		err(1, "%s: open for write", file2);
 	}
-	printf("sim_test 3");
+
 	rv = write(fd1, writebuf1, 40);
 	if (rv<0) {
 		err(1, "%s: write", file1);
 	}
-	printf("sim_test 4");
+
 	rv = write(fd2, writebuf2, 40);
 	if (rv<0) {
 		err(1, "%s: write", file2);
 	}
-	printf("sim_test 5");
+
 	/* Rewind both files */
 	lseek_ret = lseek(fd1, -(40-seekpos), SEEK_CUR);
 	if (lseek_ret != seekpos) {
 		err(1, "%s: lseek", file1);
 	}
-	printf("sim_test 6");
+
 	lseek_ret = lseek(fd2, seekpos, SEEK_SET);
+
 	if (lseek_ret != seekpos) {
 		err(1, "%s: lseek", file2);
 	}
-	printf("sim_test 7");
+
 	/* Read and test the data from the first file */
 	rv = read(fd1, readbuf, 40-seekpos);
 	if (rv<0) {
 		err(1, "%s: read", file1);
 	}	
 	readbuf[40] = 0;
-	printf("sim_test 8");
+
 	if (strcmp(readbuf, &writebuf1[seekpos]))
 		errx(1, "Buffer data mismatch for %s!", file1);
 	
-	printf("sim_test 9");
 	/* Read and test the data from the second file */
 	rv = read(fd2, readbuf, 40-seekpos);
 	if (rv<0) {
 		err(1, "%s: read", file2);
 	}
 	readbuf[40] = 0;
-	printf("sim_test 10");
+
 	if (strcmp(readbuf, &writebuf2[seekpos])) {
 		printf("Expected: \"%s\", actual: \"%s\"\n", writebuf2,
 		       readbuf);
 		errx(1, "Buffer data mismatch for %s!", file2);
 	}
-	printf("sim_test 11");
+
 	rv = close(fd1);
 	if (rv<0) {
 		err(1, "%s: close", file1);
 	}
-	printf("sim_test 12");
+
 	rv = close(fd2);
 	if (rv<0)
 	{
 		err(1, "%s: close", file2);
 	}
-	printf("sim_test 13");
 }
 
 static void
