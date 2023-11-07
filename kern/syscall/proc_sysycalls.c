@@ -25,7 +25,7 @@
 #include <endian.h>
 #include <proc_syscalls.h>
 
-pid_t fork(struct trapframe *tf, int *retval){
+int fork(struct trapframe *tf, int *retval){
 
 }
 int execv(const char *program, char **args){
