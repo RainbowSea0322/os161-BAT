@@ -46,6 +46,10 @@ int fork(struct trapframe *tf, int *retval){
     }
 
     //copy file_table
+    if(curproc->ft == NULL || child_proc->ft == NULL){
+        proc_destroy(child_proc);
+        return -1;
+    }
     lock_acquire(curproc->ft->file_table_lock);
     lock_acquire(child_proc->ft->file_table_lock);
     for(int fd; fd < OPEN_MAX; fd++){
@@ -69,6 +73,11 @@ int fork(struct trapframe *tf, int *retval){
     memcpy(trap_copy, tf, sizeof(struct trapframe));
 
 
+    //TODO get kern thread
+
+    //return
+    *retval = child_proc->pid;
+    return 0;
 }
 int execv(const char *program, char **args){
 
