@@ -40,9 +40,10 @@
 #include <thread.h> /* required for struct threadarray */
 #include <limits.h>
 #include <file_table.h>
+#include <synch.h>
 
 struct open_file;
-struct open_file_table;
+struct file_table;
 
 struct addrspace;
 struct vnode;
@@ -62,6 +63,10 @@ struct proc {
 	struct vnode *p_cwd;		/* current working directory */
 
 	struct file_table *ft;
+
+	pid_t pid;
+
+	struct lock *child_lock;	
 	/* add more material here as needed */
 };
 
