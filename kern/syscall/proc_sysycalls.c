@@ -23,9 +23,51 @@
 #include <kern/stat.h>
 #include <kern/errno.h>
 #include <endian.h>
+#include <array.h>
 #include <proc_syscalls.h>
 
 int fork(struct trapframe *tf, int *retval){
+    struct proc *child_proc;
+
+    child_proc = proc_create_runprogram("child_proc");
+    
+    if (child_proc == NULL) {
+        return ENPROC;
+    }
+
+    array_add(curproc->children, child_proc, NULL);
+
+    //copy address_space
+    result = as_copy(curproc->p_addrspace, &child_proc->p_addrspace);
+
+    if (result) {
+        proc_destroy(child_proc);
+        return result;
+    }
+
+    //copy file_table
+    lock_acquire(curproc->ft->file_table_lock);
+    lock_acquire(child_proc->ft->file_table_lock);
+    for(int fd; fd < OPEN_MAX; fd++){
+        if(curproc->ft->table[fd] != NULL){
+            child_proc->ft->table[fd] = curproc->ft->table[fd];
+            of_incref(curproc->ft->table[fd]);
+        }
+    }
+    lock_release(curproc->ft->file_table_lock);
+    lock_release(child_proc->ft->file_table_lock);
+
+    //copy trap frame
+    struct trapframe *trap_copy = kmalloc(sizeof(struct trapframe));
+
+    if (trap_copy == NULL) {
+        kfree(trap_copy);
+        proc_destroy(child_proc);
+        return ENOMEM;
+    }
+
+    memcpy();
+
 
 }
 int execv(const char *program, char **args){

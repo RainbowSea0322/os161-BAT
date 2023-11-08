@@ -66,7 +66,8 @@ struct proc {
 
 	pid_t pid;
 
-	struct lock *child_lock;	
+	struct lock *children_array_lock;	
+	struct array *children;
 	/* add more material here as needed */
 };
 
