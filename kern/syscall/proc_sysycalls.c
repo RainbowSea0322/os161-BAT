@@ -66,7 +66,7 @@ int fork(struct trapframe *tf, int *retval){
         return ENOMEM;
     }
 
-    memcpy();
+    memcpy(trap_copy, tf, sizeof(struct trapframe));
 
 
 }
