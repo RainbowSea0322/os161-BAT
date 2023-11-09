@@ -57,7 +57,7 @@
  */
 struct proc *kproc;
 
-struct pid_t pid_table[PID_MAX];
+struct uint16_t pid_table[PID_MAX];
 struct lock *pid_table_lock;
 
 struct
@@ -238,7 +238,20 @@ proc_create_runprogram(const char *name)
 		return NULL;
 	}
 
-	//TODO edit pid_table and edit child proc pid
+	//edit pid_table and edit child proc pid
+	lock_acquire(pid_table_lock);
+	for(uint16_t pid; pid < PID_MAX; pid++){
+		if (pid_table[pid] == 0){
+			pid_table[pid] == pid;
+			newproc->pid = pid;
+		}else if (pid == PID_MAX){
+			lock_release(pid_table_lock);
+			return NULL;
+		}
+	}
+	lock_release(pid_table_lock);
+	newproc->children_proc = array_create();
+	newproc->children_proc_lock = lock_create("children_proc_lock");
 	return newproc;
 }
 

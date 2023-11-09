@@ -66,7 +66,7 @@ struct proc {
 
 	struct file_table *ft;
 
-	pid_t pid;
+	uint16_t pid;
 
 	struct lock *children_proc_lock;	
 	struct array *children_proc;
