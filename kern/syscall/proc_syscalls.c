@@ -29,7 +29,7 @@
 int fork(struct trapframe *tf, int *retval){
     struct proc *child_proc;
 
-    //TODO add pid table in proc.c
+    //create proc with pid
     child_proc = proc_create_runprogram("child_proc");
     
     if (child_proc == NULL) {
