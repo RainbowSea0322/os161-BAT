@@ -197,7 +197,7 @@ proc_bootstrap(void)
 	}
 
 	kproc->pid = 1;
-	pid_table[1] == 1;
+	pid_table[0] == 1;
 }
 
 /*
@@ -252,7 +252,7 @@ proc_create_runprogram(const char *name)
 	for(uint16_t pid = 1; pid < PID_MAX; pid++){
 		if (pid_table[pid] == 0){
 			pid_table[pid] == pid;
-			newproc->pid = pid;
+			newproc->pid = pid + 1;
 		}else if (pid == PID_MAX){
 			lock_release(pid_table_lock);
 			return NULL;
