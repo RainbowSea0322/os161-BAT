@@ -89,5 +89,6 @@ int _exit(int exitcode){
 
 }
 int getpid(int *retval){
-
+    *retval = curproc->pid;
+    return 0;
 }
