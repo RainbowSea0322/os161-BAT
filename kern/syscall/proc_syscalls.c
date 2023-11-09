@@ -29,13 +29,14 @@
 int fork(struct trapframe *tf, int *retval){
     struct proc *child_proc;
 
+    //TODO add pid table in proc.c
     child_proc = proc_create_runprogram("child_proc");
     
     if (child_proc == NULL) {
         return ENPROC;
     }
 
-    array_add(curproc->children, child_proc, NULL);
+    array_add(curproc->children_proc, child_proc, NULL);
 
     //copy address_space
     result = as_copy(curproc->p_addrspace, &child_proc->p_addrspace);
@@ -45,8 +46,22 @@ int fork(struct trapframe *tf, int *retval){
         return result;
     }
 
+    //copy trap frame
+    struct trapframe *trap_copy = kmalloc(sizeof(struct trapframe));
+
+    if (trap_copy == NULL) {
+        kfree(trap_copy);
+        proc_destroy(child_proc);
+        return ENOMEM;
+    }
+
+    memcpy(trap_copy, tf, sizeof(struct trapframe));
+
+    //TODO get kern thread
+
     //copy file_table
     if(curproc->ft == NULL || child_proc->ft == NULL){
+        kfree(trap_copy);
         proc_destroy(child_proc);
         return -1;
     }
@@ -61,19 +76,6 @@ int fork(struct trapframe *tf, int *retval){
     lock_release(curproc->ft->file_table_lock);
     lock_release(child_proc->ft->file_table_lock);
 
-    //copy trap frame
-    struct trapframe *trap_copy = kmalloc(sizeof(struct trapframe));
-
-    if (trap_copy == NULL) {
-        kfree(trap_copy);
-        proc_destroy(child_proc);
-        return ENOMEM;
-    }
-
-    memcpy(trap_copy, tf, sizeof(struct trapframe));
-
-
-    //TODO get kern thread
 
     //return
     *retval = child_proc->pid;

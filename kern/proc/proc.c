@@ -57,6 +57,10 @@
  */
 struct proc *kproc;
 
+struct pid_t pid_table[PID_MAX];
+struct lock *pid_table_lock;
+
+struct
 /*
  * Create a proc structure.
  */
@@ -234,6 +238,7 @@ proc_create_runprogram(const char *name)
 		return NULL;
 	}
 
+	//TODO edit pid_table and edit child proc pid
 	return newproc;
 }
 

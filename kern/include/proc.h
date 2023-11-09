@@ -41,6 +41,8 @@
 #include <limits.h>
 #include <file_table.h>
 #include <synch.h>
+#include <type.h>
+
 
 struct open_file;
 struct file_table;
@@ -66,10 +68,11 @@ struct proc {
 
 	pid_t pid;
 
-	struct lock *children_array_lock;	
-	struct array *children;
+	struct lock *children_proc_lock;	
+	struct array *children_proc;
 	/* add more material here as needed */
 };
+
 
 /* This is the process structure for the kernel and for kernel-only threads. */
 extern struct proc *kproc;
