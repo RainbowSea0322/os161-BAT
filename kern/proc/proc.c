@@ -189,6 +189,15 @@ proc_bootstrap(void)
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
 	}
+
+	
+	pid_table_lock = lock_create("pid_table_lock");
+	if (pid_table_lock == NULL) {
+		panic("failed to create pid table lock\n");
+	}
+
+	kproc->pid = 1;
+	pid_table[0] == 1;
 }
 
 /*
@@ -240,7 +249,7 @@ proc_create_runprogram(const char *name)
 
 	//edit pid_table and edit child proc pid
 	lock_acquire(pid_table_lock);
-	for(uint16_t pid; pid < PID_MAX; pid++){
+	for(uint16_t pid = 1; pid < PID_MAX; pid++){
 		if (pid_table[pid] == 0){
 			pid_table[pid] == pid;
 			newproc->pid = pid;
