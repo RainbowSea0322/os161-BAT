@@ -197,7 +197,7 @@ proc_bootstrap(void)
 	}
 
 	kproc->pid = 1;
-	pid_table[0] == 1;
+	pid_table[1] == 1;
 }
 
 /*
