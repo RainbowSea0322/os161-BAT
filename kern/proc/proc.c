@@ -48,19 +48,15 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
-#include <file_table.h>
 #include <synch.h>
-
+#include <pid_table.h>
+#include <file_table.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
 
-struct uint16_t pid_table[PID_MAX];
-struct lock *pid_table_lock;
-
-struct
 /*
  * Create a proc structure.
  */
@@ -190,14 +186,9 @@ proc_bootstrap(void)
 		panic("proc_create for kproc failed\n");
 	}
 
-	
-	pid_table_lock = lock_create("pid_table_lock");
-	if (pid_table_lock == NULL) {
-		panic("failed to create pid table lock\n");
-	}
-
+	struct pid_table *pt = pt_create();
 	kproc->pid = 1;
-	pid_table[0] == 1;
+	pt->ptable[0] = kproc;
 }
 
 /*
@@ -248,17 +239,17 @@ proc_create_runprogram(const char *name)
 	}
 
 	//edit pid_table and edit child proc pid
-	lock_acquire(pid_table_lock);
-	for(uint16_t pid = 1; pid < PID_MAX; pid++){
-		if (pid_table[pid] == 0){
-			pid_table[pid] == pid;
-			newproc->pid = pid + 1;
-		}else if (pid == PID_MAX){
-			lock_release(pid_table_lock);
+	lock_acquire(pt->ptable_lock);
+	for(int i = 1; i < PID_MAX; i++){
+		if (pt->ptable[i] == NULL){
+			pt->ptable[i] == newproc;
+			newproc->pid = i + 1;
+		}else if (i == PID_MAX){
+			lock_release(pt->ptable_lock);
 			return NULL;
 		}
 	}
-	lock_release(pid_table_lock);
+	lock_release(pt->ptable_lock);
 	newproc->children_proc = array_create();
 	newproc->children_proc_lock = lock_create("children_proc_lock");
 	return newproc;

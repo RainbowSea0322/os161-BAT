@@ -42,6 +42,7 @@
 #include <file_table.h>
 #include <synch.h>
 #include <type.h>
+#include <pid_table.h>
 
 
 struct open_file;
@@ -70,6 +71,9 @@ struct proc {
 
 	struct lock *children_proc_lock;	
 	struct array *children_proc;
+
+	int exitStatus;
+	bool Exit;
 	/* add more material here as needed */
 };
 

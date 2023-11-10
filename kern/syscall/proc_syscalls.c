@@ -25,6 +25,7 @@
 #include <endian.h>
 #include <array.h>
 #include <proc_syscalls.h>
+#include <pid_table.h>
 
 int fork(struct trapframe *tf, int *retval){
     struct proc *child_proc;
@@ -82,10 +83,22 @@ int fork(struct trapframe *tf, int *retval){
     return 0;
 }
 int execv(const char *program, char **args){
-
+    
 }
 int waitpid(int pid, userptr_t status, int options, int *retval){
+    if (options != 0) {
+        return EINVAL;
+    }
 
+    lock_acquire(pid_table_lock);
+    if(pid_table[pid] == NULL || pid < 1 || pid > PID_MAX){
+        return ESRCH;
+    }
+    lock_release(pid_table_lock);
+
+    if(curproc->children_proc[pid] == NULL){
+        return ECHILD;
+    }
 }
 int _exit(int exitcode){
 
