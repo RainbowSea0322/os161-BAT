@@ -73,7 +73,14 @@ int fork(struct trapframe *tf, int *retval){
     unsigned long data2 = 0;
     // const char *name, struct proc *proc, void (*entrypoint)(void *data1, unsigned long data2), void *data1, unsigned long data2
     result = thread_fork("child thread", child_proc, child_entry_point, trapframe_copy, data2);
-
+    if(result){
+        if (result) {
+            kfree(trapframe_copy);
+            proc_destroy(child);
+            
+        return -1;
+    }
+    }
     //return
     *retval = child_proc->pid;
     return 0;

@@ -56,7 +56,7 @@
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
-
+struct pid_table *pt;
 /*
  * Create a proc structure.
  */
@@ -168,12 +168,23 @@ proc_destroy(struct proc *proc)
 		as_destroy(as);
 	}
 
+	lock_acquire(pt->ptable_lock);
+	curpid = (proc->pid) - 1;
+	if(pt->ptable[curpid] != NULL){
+		cv_destory(EXIT_CV);
+		kfree(pt->ptable[curpid]);
+		pt->ptable[curpid] = NULL;
+	}
+	lock_release(pt->ptable_lock);
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
 	ft_destroy(proc->ft);
+	array_destory(proc->children_proc);
+	lock_destory(proc->children_proc_lock);
 
 	kfree(proc->p_name);
 }
+
 
 /*
  * Create the process structure for the kernel.
@@ -186,7 +197,7 @@ proc_bootstrap(void)
 		panic("proc_create for kproc failed\n");
 	}
 
-	struct pid_table *pt = pt_create();
+	pt = pt_create();
 	kproc->pid = 1;
 	pt->ptable[0] = kmalloc(sizeof(pid));
 	pt->ptable[0]-> curproc_pid = 1;
