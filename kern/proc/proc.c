@@ -169,8 +169,8 @@ proc_destroy(struct proc *proc)
 	}
 
 	lock_acquire(pt->ptable_lock);
-	curpid = (proc->pid) - 1;
-	if(pt->ptable[curpid] != NULL){
+	int curIndex = (proc->pid) - 1;
+	if(pt->ptable[curIndex] != NULL){
 		cv_destory(EXIT_CV);
 		kfree(pt->ptable[curpid]);
 		pt->ptable[curpid] = NULL;

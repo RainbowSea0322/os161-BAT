@@ -27,6 +27,7 @@
 #include <proc_syscalls.h>
 #include <pid_table.h>
 
+struct pid_table *pt;
 int fork(struct trapframe *tf, int *retval){
     struct proc *child_proc;
     struct trapframe *trapframe_copy;
@@ -111,6 +112,25 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
     }
 }
 int _exit(int exitcode){
+    lock_acquire(children_proc_lock);
+    while(curproc->children_proc->num > 0){
+        struct *child = array_get(curproc->children_proc, 0);
+        int childIndex = child->pid - 1;
+        int curIndex = curproc->pid - 1;
+        lock_acquire(pt->ptable_lock);
+        if(pt->ptable[childIndex]->EXIT == true){
+            proc_destroy(child);
+        }else{
+            pt->ptable[childIndex]->ppid = -1;
+        }
+        pt->ptable[curIndex]->EXIT = true;
+        pt->ptable[curIndex]->exit_status = exitcode;
+        lock_release(pt->ptable_lock);
+        array_remove(curproc->children_proc, 0);
+    }
+    lock_release(children_proc_lock);
+
+    //TODO check cv to remove the block of parent.
 
 }
 int getpid(int *retval){
