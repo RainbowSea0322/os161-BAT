@@ -40,6 +40,7 @@
 #include <endian.h>
 #include <proc.h>
 #include <file_dir_syscalls.h>
+#include <proc_syscalls.h>
 
 /*
  * System call dispatcher.
@@ -170,6 +171,31 @@ syscall(struct trapframe *tf)
 		err = __getcwd((char *)tf->tf_a0, (size_t)tf->tf_a1, &retval);
 		break;
 
+		case SYS_fork:
+		// struct trapframe *tf, int *retval);
+		err = fork(tf, &retval);
+		break;
+
+		case: SYS_execv:
+		// const char *program, char **args
+		err = execv((char *)tf->tf_a0, (char **)tf->tf_a1);
+		break;
+
+		case SYS_waitpid:
+		// int pid, userptr_t status, int options, int *retval
+		err = waitpid(tf->tf_a0, (userptr_t)tf->tf_a1, tf->tf_a2, &retval);
+		break;
+
+		case SYS__exit:
+		// int exitcode
+		err = _exit(tf->tf_a0);
+		break;
+
+		case SYS_getpid:
+		// int *retval
+		int getpid(&retval);
+		break;
+
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
@@ -216,5 +242,21 @@ syscall(struct trapframe *tf)
 void
 enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+	struct trapframe my_tf;
+
+    //make a copy to prevent memory leak
+    memcpy(&my_tf, tf, sizeof(struct trapframe));
+	kfree(tf);
+
+	// child process return 0 for fork() syscall
+
+    // do the same thing as in syscall() above
+	&my_tf->tf_v0 = retval;
+	&my_tf->tf_a3 = 0;      /* signal no error */
+
+	// advance pc
+	child_tf.tf_epc += 4;
+
+	// switch to usermode
+    mips_usermode(&my_tf);
 }
