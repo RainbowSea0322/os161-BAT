@@ -72,8 +72,9 @@ struct proc {
 	struct lock *children_proc_lock;	
 	struct array *children_proc;
 
-	int exitStatus;
+	int exit_status;
 	bool Exit;
+	struct cv * EXIT_CV;
 	/* add more material here as needed */
 };
 
