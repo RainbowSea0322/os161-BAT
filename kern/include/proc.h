@@ -67,14 +67,10 @@ struct proc {
 
 	struct file_table *ft;
 
-	uint16_t pid;
+	int pid;
 
 	struct lock *children_proc_lock;	
 	struct array *children_proc;
-
-	int exit_status;
-	bool Exit;
-	struct cv * EXIT_CV;
 	/* add more material here as needed */
 };
 

@@ -188,7 +188,8 @@ proc_bootstrap(void)
 
 	struct pid_table *pt = pt_create();
 	kproc->pid = 1;
-	pt->ptable[0] = kproc;
+	pt->ptable[0] = kmalloc(sizeof(pid));
+	pt->ptable[0]-> curproc_pid = 1;
 }
 
 /*
@@ -242,7 +243,15 @@ proc_create_runprogram(const char *name)
 	lock_acquire(pt->ptable_lock);
 	for(int i = 1; i < PID_MAX; i++){
 		if (pt->ptable[i] == NULL){
-			pt->ptable[i] == newproc;
+			pt->ptable[i] == kmalloc(sizeof(pid));
+			if (pid_table[i] == NULL) {
+				return 0;
+			}
+			pid_table[i]->curproc_pid = i + 1; 
+			pid_table[i]->ppid = curproc->pid; 
+			pid_table[i]->EXIT = false; 
+			pid_table[i]->exit_status = 0;
+			pid_table[i]->EXIT_CV = cv_create("exit cv");
 			newproc->pid = i + 1;
 		}else if (i == PID_MAX){
 			lock_release(pt->ptable_lock);
