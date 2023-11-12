@@ -113,39 +113,50 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
 
     // child already exit
     if(child_pid->EXIT) {
-        *status = child_pid->exit_status;
+        if(status != NULL){
+            *status = child_pid->exit_status;
+        }
         *retval = child_pid->pid;
         return 0;
     }
-    // TODO: change cv to semaphore
-    cv_wait(child_pid->EXIT_CV);
+    P(child_pid->EXIT_SEM);
+    if(status != NULL){
+        *status = child_pid->exit_status;
+    }
 
+    lock_acquire(curproc->children_proc_lock);
+    for (int i = 0; i < curproc->childProcs->num; i++) {
+        struct proc *childProc = array_get(curproc->childProcs, i);
+        if (childProc->pid == pid) {
+            array_remove(curproc->childProcs, i);
+            proc_destroy(childProc);
+            break;
+        }
+    }
+    lock_release(curproc->children_proc_lock);
     *status = child_pid->exit_status;
     *retval = child_pid->pid;
     return 0;
 }
 
 int _exit(int exitcode){
-    // TODO: replace pt with proc.c helper function
     int curIndex = curproc->pid - 1;
+    struct pid *curpid = get_struct_pid_by_pid(curproc->pid);
     while(curproc->children_proc->num > 0){
         struct proc *child = array_get(curproc->children_proc, 0);
         int childIndex = child->pid - 1;
-        lock_acquire(pt->ptable_lock);
-        if(pt->ptable[childIndex]->EXIT == true){
+        struct pid *childpid = get_struct_pid_by_pid(child->pid);
+        if(childpid->EXIT == true){
             proc_destroy(child);
         }else{
-            pt->ptable[childIndex]->ppid = -1;
+            childpid->ppid = -1;
         }
         array_remove(curproc->children_proc, 0);
     }
-    pt->ptable[curIndex]->EXIT = true;
-    pt->ptable[curIndex]->exit_status = exitcode;
-    // TODO change to semaphore
-    cv_signal(pt->ptable[curIndex]->EXIT_CV);
-    lock_release(pt->ptable_lock);
-
-    // TODO thread exit
+    curpid->EXIT = true;
+    curpid->exit_status = exitcode;
+    V(curpid->EXIT_SEM);
+    thraed_exit();
 }
 
 int getpid(int *retval){

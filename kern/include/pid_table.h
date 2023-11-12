@@ -19,7 +19,7 @@ struct pid {
     int ppid;
 	int exit_status;
 	bool Exit;
-	struct cv * EXIT_CV;
+	struct semaphore * EXIT_SEM;
 }pid
 //function for pid table
 struct pid_table * pt_create(void);

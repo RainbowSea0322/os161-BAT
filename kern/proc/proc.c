@@ -171,9 +171,9 @@ proc_destroy(struct proc *proc)
 	lock_acquire(pt->ptable_lock);
 	int curIndex = (proc->pid) - 1;
 	if(pt->ptable[curIndex] != NULL){
-		cv_destory(EXIT_CV);
-		kfree(pt->ptable[curpid]);
-		pt->ptable[curpid] = NULL;
+		sem_destory(EXIT_SEM);
+		kfree(pt->ptable[curIndex]);
+		pt->ptable[curIndex] = NULL;
 	}
 	lock_release(pt->ptable_lock);
 	threadarray_cleanup(&proc->p_threads);
@@ -262,7 +262,7 @@ proc_create_runprogram(const char *name)
 			pid_table[i]->ppid = curproc->pid; 
 			pid_table[i]->EXIT = false; 
 			pid_table[i]->exit_status = 0;
-			pid_table[i]->EXIT_CV = cv_create("exit cv");
+			pid_table[i]->EXIT_SEM = sem_create("exit semaphore");
 			newproc->pid = i + 1;
 		}else if (i == PID_MAX){
 			lock_release(pt->ptable_lock);
@@ -385,8 +385,9 @@ proc_setas(struct addrspace *newas)
 }
 
 struct pid* get_struct_pid_by_pid(int pid){
-	// TODO
 	lock_acquire(pt->ptable_lock);
-	(void) pid;
+	int curIndex = pid - 1;
+	struct pid* return_pid = pt->ptable[curIndex];
 	lock_release(pt->ptable_lock);
+	return return_pid;
 }
