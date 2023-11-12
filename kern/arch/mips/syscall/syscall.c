@@ -257,6 +257,9 @@ enter_forked_process(struct trapframe *tf)
 	// advance pc
 	child_tf.tf_epc += 4;
 
+	// TODO: need to understand this, why we set it to activate
+	as_activate();
+
 	// switch to usermode
     mips_usermode(&my_tf);
 }

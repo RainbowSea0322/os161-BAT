@@ -69,7 +69,7 @@ struct proc {
 
 	int pid;
 
-	struct lock *children_proc_lock;	
+	struct lock *children_proc_lock; 
 	struct array *children_proc;
 	/* add more material here as needed */
 };
@@ -99,5 +99,6 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
+struct pid* get_struct_pid_by_pid(int pid);
 
 #endif /* _PROC_H_ */

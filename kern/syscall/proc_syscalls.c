@@ -27,7 +27,6 @@
 #include <proc_syscalls.h>
 #include <pid_table.h>
 
-struct pid_table *pt;
 int fork(struct trapframe *tf, int *retval){
     struct proc *child_proc;
     struct trapframe *trapframe_copy;
@@ -52,7 +51,6 @@ int fork(struct trapframe *tf, int *retval){
     //copy trap frame
     trapframe_copy = kmalloc(sizeof(struct trapframe));
     if (trapframe_copy == NULL) {
-        kfree(trapframe_copy);
         proc_destroy(child_proc);
         return ENOMEM;
     }
@@ -75,13 +73,11 @@ int fork(struct trapframe *tf, int *retval){
     // const char *name, struct proc *proc, void (*entrypoint)(void *data1, unsigned long data2), void *data1, unsigned long data2
     result = thread_fork("child thread", child_proc, child_entry_point, trapframe_copy, data2);
     if(result){
-        if (result) {
-            kfree(trapframe_copy);
-            proc_destroy(child);
-            
-        return -1;
+        kfree(trapframe_copy);
+        proc_destroy(child);
+        return result;
     }
-    }
+
     //return
     *retval = child_proc->pid;
     return 0;
@@ -96,43 +92,62 @@ void child_entry_point(void *trapframe, unsigned long data2) {
 int execv(const char *program, char **args){
     
 }
+
 int waitpid(int pid, userptr_t status, int options, int *retval){
     if (options != 0) {
         return EINVAL;
     }
+    int child_index = pid - 1;
 
-    lock_acquire(pid_table_lock);
-    if(pid_table[pid] == NULL || pid < 1 || pid > PID_MAX){
+    struct pid* child_pid = get_struct_pid_by_pid(int pid);
+
+    // check existence
+    if(child_pid == NULL || pid < 1 || pid > PID_MAX){
         return ESRCH;
     }
-    lock_release(pid_table_lock);
 
-    if(curproc->children_proc[pid] == NULL){
+    // check current process is actually its parent
+    if (child_pid->ppid != curproc->pid) {
         return ECHILD;
     }
+
+    // child already exit
+    if(child_pid->EXIT) {
+        *status = child_pid->exit_status;
+        *retval = child_pid->pid;
+        return 0;
+    }
+    // TODO: change cv to semaphore
+    cv_wait(child_pid->EXIT_CV);
+
+    *status = child_pid->exit_status;
+    *retval = child_pid->pid;
+    return 0;
 }
+
 int _exit(int exitcode){
-    lock_acquire(children_proc_lock);
+    // TODO: replace pt with proc.c helper function
+    int curIndex = curproc->pid - 1;
     while(curproc->children_proc->num > 0){
-        struct *child = array_get(curproc->children_proc, 0);
+        struct proc *child = array_get(curproc->children_proc, 0);
         int childIndex = child->pid - 1;
-        int curIndex = curproc->pid - 1;
         lock_acquire(pt->ptable_lock);
         if(pt->ptable[childIndex]->EXIT == true){
             proc_destroy(child);
         }else{
             pt->ptable[childIndex]->ppid = -1;
         }
-        pt->ptable[curIndex]->EXIT = true;
-        pt->ptable[curIndex]->exit_status = exitcode;
-        lock_release(pt->ptable_lock);
         array_remove(curproc->children_proc, 0);
     }
-    lock_release(children_proc_lock);
+    pt->ptable[curIndex]->EXIT = true;
+    pt->ptable[curIndex]->exit_status = exitcode;
+    // TODO change to semaphore
+    cv_signal(pt->ptable[curIndex]->EXIT_CV);
+    lock_release(pt->ptable_lock);
 
-    //TODO check cv to remove the block of parent.
-
+    // TODO thread exit
 }
+
 int getpid(int *retval){
     *retval = curproc->pid;
     return 0;

@@ -383,3 +383,10 @@ proc_setas(struct addrspace *newas)
 	spinlock_release(&proc->p_lock);
 	return oldas;
 }
+
+struct pid* get_struct_pid_by_pid(int pid){
+	// TODO
+	lock_acquire(pt->ptable_lock);
+	(void) pid;
+	lock_release(pt->ptable_lock);
+}
