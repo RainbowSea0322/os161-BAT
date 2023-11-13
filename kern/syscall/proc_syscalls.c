@@ -111,30 +111,38 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
         return ECHILD;
     }
 
+    int exit_status, result;
     // child already exit
     if(child_pid->EXIT) {
         if(status != NULL){
-            *status = child_pid->exit_status;
+            exit_status = child_pid->exit_status;
+            result = copyout(&exit_status, status, sizeof(int));
+            if (result) {
+                return EFAULT;
+            }
         }
         *retval = child_pid->pid;
         return 0;
     }
     P(child_pid->EXIT_SEM);
     if(status != NULL){
-        *status = child_pid->exit_status;
+        exit_status = child_pid->exit_status;
+        result = copyout(&exit_status, status, sizeof(int));
+        if (result) {
+            return EFAULT;
+        }
     }
 
     lock_acquire(curproc->children_proc_lock);
-    for (int i = 0; i < curproc->childProcs->num; i++) {
-        struct proc *childProc = array_get(curproc->childProcs, i);
+    for (int i = 0; i < curproc->children_proc->num; i++) {
+        struct proc *childProc = array_get(curproc->children_proc, i);
         if (childProc->pid == pid) {
-            array_remove(curproc->childProcs, i);
+            array_remove(curproc->children_proc, i);
             proc_destroy(childProc);
             break;
         }
     }
     lock_release(curproc->children_proc_lock);
-    *status = child_pid->exit_status;
     *retval = child_pid->pid;
     return 0;
 }
