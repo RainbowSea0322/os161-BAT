@@ -162,6 +162,90 @@ int execv(const char *program, char **args){
     }
 
     // 3. prepare to load program in the current address space by load_elf
+    struct vnode *prog_vnode;
+    err = vfs_open(progname, O_RDONLY, 0, &prog_vnode);
+    if (err) {
+        for(int i = 0; i < num_arg; i++){
+            kfree(arg_pointers[i]);
+        }
+        kfree(arg_pointers);
+        kfree(progname);
+        return err;
+    }
+    kfree(progname);
+
+    struct addrspace *cur_addrspace = as_create();
+    if (cur_addrspace == NULL) {
+        for(int i = 0; i < num_arg; i++){
+            kfree(arg_pointers[i]);
+        }
+        kfree(arg_pointers);
+        return ENOMEM;
+    }
+
+    struct addrspace *old_addrspace = proc_setas(cur_addrspace);
+    as_activate();
+
+    vaddr_t pc;
+    err = load_elf(prog_vnode, &pc);
+    if (err) {
+        for(int i = 0; i < num_arg; i++){
+            kfree(arg_pointers[i]);
+        }
+        kfree(arg_pointers);
+        proc_setas(old_addrspace);
+        as_activate();
+        as_destroy(cur_addrspace);
+        return err;
+    }
+
+    vaddr_t sp;
+    err = as_define_stack(cur_addrspace, &sp);
+    if (err) {
+        for(int i = 0; i < num_arg; i++){
+            kfree(arg_pointers[i]);
+        }
+        kfree(arg_pointers);
+        proc_setas(old_addrspace);
+        as_activate();
+        as_destroy(cur_addrspace);
+        return err;
+    }
+
+    // create array for storing argument locations in user stack
+    char **arg_loc = kmalloc(sizeof(char *) * (num_arg + 1));
+    if (arg_loc == NULL) {
+        for(int i = 0; i < num_arg; i++){
+            kfree(arg_pointers[i]);
+        }
+        kfree(arg_pointers);
+        proc_setas(old_addrspace);
+        as_activate();
+        as_destroy(cur_addrspace);
+        return ENOMEM;
+    }
+
+    sp -= stack_space_needed;// find sp to keep enough space for program
+
+    //copyout to user stack
+
+     for (int i = 0; i < argc; i++) {
+        // copy argument string onto user stack from kernel buffer
+        int arglen = strlen(arg_pointers[i]) + 1;
+        err = copyoutstr(arg_pointers[i], (userptr_t) sp, arglen, NULL);
+        if (err) {
+            kfree_buf(arg_pointers, argc);
+            kfree_cur_addrspace(old_addrspace, cur_addrspace);
+            kfree(arg_loc);
+            return err;
+        }
+        
+        // store address of current argument
+        arg_loc[i] = (char *) sp;
+
+        // leave extra padding so each argument is aligned to 4 bytes
+        sp += get_arglen(arglen);
+    }
 
 
 }
