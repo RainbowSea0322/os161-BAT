@@ -88,9 +88,139 @@ void child_entry_point(void *trapframe, unsigned long data2) {
     enter_forked_process((struct trapframe *) trapframe);
 }
 
-
 int execv(const char *program, char **args){
+    int err;
     
+    err = check_argument_validity_execv(args);
+    if (err) {
+        return err;
+    }
+
+    // 1. copy the program name and argument array pointer
+    char *program_copy; = kmalloc(PATH_MAX);
+    if (program_copy == NULL) {
+        return ENOMEM;
+    }
+    err = copyinstr((userptr_t) program, program_copy, PATH_MAX, NULL);
+    if (err) {
+        kfree(program_copy);
+        return err;
+    }
+
+    // 2. copy all the arguments in args
+    // 2.a count the number of arguments by the NULL terminator
+    int num_arg;
+    for (num_arg = 0; args[num_arg] != NULL; num_arg++){
+        // do nothing inside
+    };
+
+    // 2.b create a buffer in kernel store the num_arg and all the arguments (except the NULL teminator)
+    // 2.b.(1) create the arguments' pointers array
+    char **arg_pointers = kmalloc(sizeof(char *) * num_arg);
+    if (arg_pointers == NULL) {
+        kfree(program_copy);
+        return ENOMEM;
+    }
+    copyin((userptr_t) args, arg_pointers, sizeof(char**));
+
+    int stack_space_needed = 0;
+    
+    // 2.b.(3) actaully copy the argument pointers and arguments to kernel (modify the pointer to be kernel pointer actually pointing to the kernel stack)
+    for (int i = 0; i < num_arg; i++) {
+        // copy the argument pointers to arg_pointers[0, num_arg]
+        copyin((userptr_t) args + i * sizeof(char *), arg_pointers + i * sizeof(char *), sizeof(char*));
+
+        // copy the actual arguments to arg_array
+        // a. create space to store the argument
+        int cur_arg_length = strlen(args[i]);
+        // add 1 to include the '/0' terminator
+        cur_arg_length ++;
+
+        char * arg_pointers[i] = kmalloc(sizeof(char) * cur_arg_length);
+        if (arg_pointers[i] == NULL) {
+            kfree(program_copy);
+            kfree(arg_pointers);
+            return ENOMEM;
+        }
+        err = copyinstr((userptr_t) args[i], arg_pointers[i], sizeof(char));
+        if (err) {
+            kfree(program_copy);
+            kfree(arg_pointers[i])
+            kfree(arg_pointers);
+            return err;
+        }
+
+        // increase buffer size by aligned argument length
+        int num_stack_blocks;
+        if (cur_arg_length % 4 == 0) {
+            num_stack_blocks = cur_arg_length/4;
+        } else {
+            num_stack_blocks = cur_arg_length/4 + 1;
+        }
+
+        stack_space_needed += num_stack_blocks;
+    }
+
+    // 3. prepare to load program in the current address space by load_elf
+
+
+}
+
+int check_argument_validity_execv(char ** args) {
+    int err;
+
+    // check args it self is a valid pointer 
+    char **args_check = kmalloc(sizeof(char*));
+    if (args_check == NULL) {
+        return ENOMEM;
+    }
+    err = copyin((userptr_t) args, arg_pointer, sizeof(char*));
+    if (err) {
+        kfree(args_check);
+        return err;
+    }
+    kfree(args_check);
+
+    // check argument pointer is valid
+    int num_arg;
+    // keep counting up until hit the NULL
+    for (num_arg = 0; args[num_arg] != NULL; num_arg++);
+    // too many arguments check
+    if (num_arg > ARG_MAX) {
+        return E2BIG;
+    }
+
+    char **arg_pointers_check = kmalloc(sizeof(char*) * num_arg);
+    if (arg_pointers_check == NULL) {
+        return ENOMEM;
+    }
+    char *arg_check = kmalloc(sizeof(char) * ARG_MAX);
+    if (arg_check == NULL) {
+        kfree(arg_pointers_check);
+        return ENOMEM;
+    }
+    for (int i = 0; i < num_arg; i++) {
+        // check argument pointer validity
+        err = copyin((userptr_t) args + sizeof(char *) * i, arg_pointers_check + sizeof(char *) * i, sizeof(char*));
+        if (err) {
+            kfree(arg_check);
+            kfree(arg_pointers_check);
+            return err;
+        }
+
+        // check argument validity
+        err = copyinstr((userptr_t) args[i], arg_check, sizeof(char) * ARG_MAX, NULL);
+        if (err) {
+            kfree(arg_check);
+            kfree(arg_pointers_check);
+            return err;
+        }
+    }
+
+    // all checks passed
+    kfree(arg_check);
+    kfree(arg_pointers_check);
+    return 0;
 }
 
 int waitpid(int pid, userptr_t status, int options, int *retval){
@@ -102,7 +232,7 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
     struct pid* child_pid = get_struct_pid_by_pid(int pid);
 
     // check existence
-    if(child_pid == NULL || pid < 1 || pid > PID_MAX){
+    if(child_pid == NULL || pid < PID_MIN || pid > PID_MAX){
         return ESRCH;
     }
 

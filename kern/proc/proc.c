@@ -252,7 +252,7 @@ proc_create_runprogram(const char *name)
 
 	//edit pid_table and edit child proc pid
 	lock_acquire(pt->ptable_lock);
-	for(int i = 1; i < PID_MAX; i++){
+	for(int i = PID_MIN; i < PID_MAX; i++){
 		if (pt->ptable[i] == NULL){
 			pt->ptable[i] == kmalloc(sizeof(pid));
 			if (pid_table[i] == NULL) {
