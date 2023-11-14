@@ -20,8 +20,8 @@ struct pid {
 	int exit_status;
 	bool Exit;
 	struct semaphore * EXIT_SEM;
-}pid
+}pid;
 //function for pid table
-struct pid_table * pt_create(void);
+struct pid_table * pt_create();
 void pt_destroy(struct pid_table *pt);
 #endif

@@ -171,7 +171,7 @@ proc_destroy(struct proc *proc)
 	lock_acquire(pt->ptable_lock);
 	int curIndex = (proc->pid) - 1;
 	if(pt->ptable[curIndex] != NULL){
-		sem_destory(EXIT_SEM);
+		sem_destroy(pt->ptable[curIndex]->EXIT_SEM);
 		kfree(pt->ptable[curIndex]);
 		pt->ptable[curIndex] = NULL;
 	}
@@ -179,8 +179,8 @@ proc_destroy(struct proc *proc)
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
 	ft_destroy(proc->ft);
-	array_destory(proc->children_proc);
-	lock_destory(proc->children_proc_lock);
+	array_destroy(proc->children_proc);
+	lock_destroy(proc->children_proc_lock);
 
 	kfree(proc->p_name);
 }
@@ -250,19 +250,19 @@ proc_create_runprogram(const char *name)
 		return NULL;
 	}
 
-	//edit pid_table and edit child proc pid
+	//edit pid_table  and edit child proc pid
 	lock_acquire(pt->ptable_lock);
 	for(int i = PID_MIN; i < PID_MAX; i++){
 		if (pt->ptable[i] == NULL){
-			pt->ptable[i] == kmalloc(sizeof(pid));
-			if (pid_table[i] == NULL) {
+			pt->ptable[i] = kmalloc(sizeof(pid));
+			if (pt->ptable[i] == NULL) {
 				return 0;
 			}
-			pid_table[i]->curproc_pid = i + 1; 
-			pid_table[i]->ppid = curproc->pid; 
-			pid_table[i]->EXIT = false; 
-			pid_table[i]->exit_status = 0;
-			pid_table[i]->EXIT_SEM = sem_create("exit semaphore");
+			pt->ptable[i]->curproc_pid = i + 1; 
+			pt->ptable[i]->ppid = curproc->pid; 
+			pt->ptable[i]->Exit = false; 
+			pt->ptable[i]->exit_status = 0;
+			pt->ptable[i]->EXIT_SEM = sem_create("exit semaphore", 0);
 			newproc->pid = i + 1;
 		}else if (i == PID_MAX){
 			lock_release(pt->ptable_lock);

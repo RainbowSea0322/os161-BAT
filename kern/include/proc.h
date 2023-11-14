@@ -41,7 +41,7 @@
 #include <limits.h>
 #include <file_table.h>
 #include <synch.h>
-#include <type.h>
+#include <types.h>
 #include <pid_table.h>
 
 
