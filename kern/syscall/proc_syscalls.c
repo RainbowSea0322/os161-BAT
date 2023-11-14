@@ -145,8 +145,8 @@ int execv(const char *program, char **args){
         err = copyinstr((userptr_t) args[i], arg_pointers[i], sizeof(char));
         if (err) {
             kfree(program_copy);
-            kfree(arg_pointers[i])
-            kfree(arg_pointers);
+            // free all previous argument contents
+            free_arg_pointers(arg_pointers, i + 1);
             return err;
         }
 
@@ -162,91 +162,105 @@ int execv(const char *program, char **args){
     }
 
     // 3. prepare to load program in the current address space by load_elf
-    struct vnode *prog_vnode;
-    err = vfs_open(progname, O_RDONLY, 0, &prog_vnode);
+    struct vnode *program_vnode;
+    err = vfs_open(program_copy, O_RDONLY, 0, &program_vnode);  // char *path, int openflags, mode_t mode(meaningless as we are linux like system), struct vnode **ret
     if (err) {
-        for(int i = 0; i < num_arg; i++){
-            kfree(arg_pointers[i]);
-        }
-        kfree(arg_pointers);
+        free_arg_pointers(arg_pointers, num_arg);
         kfree(progname);
         return err;
     }
     kfree(progname);
-
-    struct addrspace *cur_addrspace = as_create();
-    if (cur_addrspace == NULL) {
-        for(int i = 0; i < num_arg; i++){
-            kfree(arg_pointers[i]);
-        }
-        kfree(arg_pointers);
+    // prepare address space for load_elf
+    struct addrspace *new_as = as_create();
+    if (new_as == NULL) {
+        free_arg_pointers(arg_pointers, num_arg);
         return ENOMEM;
     }
 
-    struct addrspace *old_addrspace = proc_setas(cur_addrspace);
+    struct addrspace *old_as = proc_setas(new_as);
     as_activate();
 
     vaddr_t pc;
-    err = load_elf(prog_vnode, &pc);
+    err = load_elf(program_vnode, &pc);
     if (err) {
-        for(int i = 0; i < num_arg; i++){
-            kfree(arg_pointers[i]);
-        }
-        kfree(arg_pointers);
-        proc_setas(old_addrspace);
-        as_activate();
-        as_destroy(cur_addrspace);
+        free_arg_pointers(arg_pointers, num_arg);
+        // revert address space change
+        revert_as(old_as, new_as);
         return err;
     }
 
+    // use define_stack() get a USERSTACK pointer
     vaddr_t sp;
-    err = as_define_stack(cur_addrspace, &sp);
+    err = as_define_stack(new_as, &sp);
     if (err) {
-        for(int i = 0; i < num_arg; i++){
-            kfree(arg_pointers[i]);
-        }
-        kfree(arg_pointers);
-        proc_setas(old_addrspace);
-        as_activate();
-        as_destroy(cur_addrspace);
+        free_arg_pointers(arg_pointers, num_arg);
+        revert_as(old_as, new_as);
         return err;
     }
 
     // create array for storing argument locations in user stack
-    char **arg_loc = kmalloc(sizeof(char *) * (num_arg + 1));
-    if (arg_loc == NULL) {
-        for(int i = 0; i < num_arg; i++){
-            kfree(arg_pointers[i]);
-        }
-        kfree(arg_pointers);
-        proc_setas(old_addrspace);
-        as_activate();
-        as_destroy(cur_addrspace);
+    char **arg_pointers_user = kmalloc(sizeof(char *) * (num_arg + 1));
+    if (arg_pointers_user == NULL) {
+        free_arg_pointers(arg_pointers, num_arg);
+        revert_as(old_as, new_as);;
         return ENOMEM;
     }
 
-    sp -= stack_space_needed;// find sp to keep enough space for program
+    sp -= stack_space_needed;// get enough space for all arguments
 
-    //copyout to user stack
-
-     for (int i = 0; i < argc; i++) {
-        // copy argument string onto user stack from kernel buffer
-        int arglen = strlen(arg_pointers[i]) + 1;
-        err = copyoutstr(arg_pointers[i], (userptr_t) sp, arglen, NULL);
+    // 4. copy out arguments to user stack
+    for (int i = 0; i < num_arg; i++) {
+        // copy argument string to user stack
+        int cur_arg_length = strlen(arg_pointers[i]) + 1;
+        err = copyoutstr(arg_pointers[i], (userptr_t) sp, cur_arg_length, NULL);
         if (err) {
-            kfree_buf(arg_pointers, argc);
-            kfree_cur_addrspace(old_addrspace, cur_addrspace);
-            kfree(arg_loc);
+            free_arg_pointers(arg_pointers, num_arg);
+            revert_as(old_as, new_as);
+            kfree(arg_pointers_user);
             return err;
         }
         
         // store address of current argument
-        arg_loc[i] = (char *) sp;
+        arg_pointers_user[i] = (char *) sp;
 
-        // leave extra padding so each argument is aligned to 4 bytes
-        sp += get_arglen(arglen);
+        // need 4 bytes alignments on stack
+        int num_stack_blocks;
+        if (cur_arg_length % 4 == 0) {
+            num_stack_blocks = cur_arg_length/4;
+        } else {
+            num_stack_blocks = cur_arg_length/4 + 1;
+        }
+
+        sp += num_stack_blocks;
     }
+    free_arg_pointers(arg_pointers, num_arg);
 
+    // make sure arg_pointers_user[num_arg] is NULL 
+    arg_pointers_user[num_arg] = NULL;
+
+    // 5. set up argument pointers according to the address of each argument on stack
+
+    sp -= stack_space_needed; // back to the top of arguments
+    sp -= (num_arg + 1) * (sizeof(char *)); // move sp to top of stack, extra 1 for the NULL terminator
+
+    for (int i = 0; i < num_arg + 1; i++) {
+        err = copyout(&arg_pointers_user[i], (userptr_t) sp, sizeof(char *));
+        if (err) {
+            revert_as(old_as, new_as);
+            kfree(arg_pointers_user);
+            return err;
+        }
+        sp += sizeof(char *); // move sp down to 
+    }
+    kfree(arg_pointers_user);
+
+    // move sp back to top for program running
+    stackptr -= (num_arg + 1) * (sizeof(char *));
+    // everything was successful, no more need the old address space backup 
+    as_destroy(old_as);
+
+    enter_new_process(num_arg, (userptr_t) sp, NULL, sp, pc); // int argc, userptr_t argv, userptr_t env, vaddr_t stack, vaddr_t entry
+    return 0;
 
 }
 
@@ -305,6 +319,19 @@ int check_argument_validity_execv(char ** args) {
     kfree(arg_check);
     kfree(arg_pointers_check);
     return 0;
+}
+
+void free_arg_pointers(char **arg_pointers, int end_index) {
+    for(int i = 0; i < end_index; i++){
+        kfree(arg_pointers[i]);
+    }
+    kfree(arg_pointers);
+}
+
+void revert_as(struct *addrspace old_as, struct *addrspace new_as) {
+    proc_setas(old_as);
+    as_activate();
+    as_destroy(new_as);
 }
 
 int waitpid(int pid, userptr_t status, int options, int *retval){
