@@ -6,7 +6,7 @@
 #include <addrspace.h>
 
 int fork(struct trapframe *tf, int *retval);
-void child_entry_point(void *trapframe, unsigned long data2)
+void child_entry_point(void *trapframe, unsigned long data2);
 int execv(const char *program, char **args);
 int check_argument_validity_execv(char ** args);
 void free_arg_pointers(char **arg_pointers, int end_index);

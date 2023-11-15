@@ -242,9 +242,9 @@
 #
 
 defdevice       beep			dev/generic/beep.c
-defdevice	con			dev/generic/console.c
-defdevice       rtclock                 dev/generic/rtclock.c
-defdevice       random                  dev/generic/random.c
+defdevice	    con			    dev/generic/console.c
+defdevice       rtclock         dev/generic/rtclock.c
+defdevice       random          dev/generic/random.c
 
 ########################################
 #                                      #
@@ -378,6 +378,8 @@ file      syscall/runprogram.c
 file      syscall/time_syscalls.c
 file	  syscall/file_table.c
 file      syscall/file_dir_syscalls.c
+file      syscall/pid_table.c
+file      syscall/proc_syscalls.c
 
 #
 # Startup and initialization

@@ -176,7 +176,7 @@ syscall(struct trapframe *tf)
 		err = fork(tf, &retval);
 		break;
 
-		case: SYS_execv:
+		case SYS_execv:
 		// const char *program, char **args
 		err = execv((char *)tf->tf_a0, (char **)tf->tf_a1);
 		break;
@@ -193,7 +193,7 @@ syscall(struct trapframe *tf)
 
 		case SYS_getpid:
 		// int *retval
-		int getpid(&retval);
+		err = getpid(&retval);
 		break;
 
 	    default:
@@ -251,13 +251,12 @@ enter_forked_process(struct trapframe *tf)
 	// child process return 0 for fork() syscall
 
     // do the same thing as in syscall() above
-	&my_tf->tf_v0 = retval;
-	&my_tf->tf_a3 = 0;      /* signal no error */
+	my_tf.tf_v0 = 0;
+	my_tf.tf_a3 = 0;      /* signal no error */
 
 	// advance pc
-	child_tf.tf_epc += 4;
+	my_tf.tf_epc += 4;
 
-	// TODO: need to understand this, why we set it to activate
 	as_activate();
 
 	// switch to usermode

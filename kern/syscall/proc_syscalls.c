@@ -30,7 +30,7 @@
 int fork(struct trapframe *tf, int *retval){
     struct proc *child_proc;
     struct trapframe *trapframe_copy;
-    struct thread *kthread;
+    int result;
 
     //create proc with pid, file table already created here
     child_proc = proc_create_runprogram("child_proc");
@@ -74,7 +74,7 @@ int fork(struct trapframe *tf, int *retval){
     result = thread_fork("child thread", child_proc, child_entry_point, trapframe_copy, data2);
     if(result){
         kfree(trapframe_copy);
-        proc_destroy(child);
+        proc_destroy(child_proc);
         return result;
     }
 
@@ -97,7 +97,7 @@ int execv(const char *program, char **args){
     }
 
     // 1. copy the program name and argument array pointer
-    char *program_copy; = kmalloc(PATH_MAX);
+    char *program_copy = kmalloc(PATH_MAX);
     if (program_copy == NULL) {
         return ENOMEM;
     }
@@ -136,13 +136,13 @@ int execv(const char *program, char **args){
         // add 1 to include the '/0' terminator
         cur_arg_length ++;
 
-        char * arg_pointers[i] = kmalloc(sizeof(char) * cur_arg_length);
+        arg_pointers[i] = kmalloc(sizeof(char) * cur_arg_length);
         if (arg_pointers[i] == NULL) {
             kfree(program_copy);
             kfree(arg_pointers);
             return ENOMEM;
         }
-        err = copyinstr((userptr_t) args[i], arg_pointers[i], sizeof(char));
+        err = copyinstr((userptr_t) args[i], arg_pointers[i], sizeof(char), NULL);
         if (err) {
             kfree(program_copy);
             // free all previous argument contents
@@ -166,10 +166,10 @@ int execv(const char *program, char **args){
     err = vfs_open(program_copy, O_RDONLY, 0, &program_vnode);  // char *path, int openflags, mode_t mode(meaningless as we are linux like system), struct vnode **ret
     if (err) {
         free_arg_pointers(arg_pointers, num_arg);
-        kfree(progname);
+        kfree(program_copy);
         return err;
     }
-    kfree(progname);
+    kfree(program_copy);
     // prepare address space for load_elf
     struct addrspace *new_as = as_create();
     if (new_as == NULL) {
@@ -255,7 +255,7 @@ int execv(const char *program, char **args){
     kfree(arg_pointers_user);
 
     // move sp back to top for program running
-    stackptr -= (num_arg + 1) * (sizeof(char *));
+    sp -= (num_arg + 1) * (sizeof(char *));
     // everything was successful, no more need the old address space backup 
     as_destroy(old_as);
 
@@ -272,7 +272,7 @@ int check_argument_validity_execv(char ** args) {
     if (args_check == NULL) {
         return ENOMEM;
     }
-    err = copyin((userptr_t) args, arg_pointer, sizeof(char*));
+    err = copyin((userptr_t) args, args_check, sizeof(char*));
     if (err) {
         kfree(args_check);
         return err;
@@ -328,7 +328,7 @@ void free_arg_pointers(char **arg_pointers, int end_index) {
     kfree(arg_pointers);
 }
 
-void revert_as(struct *addrspace old_as, struct *addrspace new_as) {
+void revert_as(struct addrspace *old_as, struct addrspace *new_as) {
     proc_setas(old_as);
     as_activate();
     as_destroy(new_as);
@@ -338,9 +338,8 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
     if (options != 0) {
         return EINVAL;
     }
-    int child_index = pid - 1;
 
-    struct pid* child_pid = get_struct_pid_by_pid(int pid);
+    struct pid* child_pid = get_struct_pid_by_pid(pid);
 
     // check existence
     if(child_pid == NULL || pid < PID_MIN || pid > PID_MAX){
@@ -354,7 +353,7 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
 
     int exit_status, result;
     // child already exit
-    if(child_pid->EXIT) {
+    if(child_pid->Exit) {
         if(status != NULL){
             exit_status = child_pid->exit_status;
             result = copyout(&exit_status, status, sizeof(int));
@@ -362,7 +361,7 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
                 return EFAULT;
             }
         }
-        *retval = child_pid->pid;
+        *retval = child_pid->curproc_pid;
         return 0;
     }
     P(child_pid->EXIT_SEM);
@@ -375,7 +374,7 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
     }
 
     lock_acquire(curproc->children_proc_lock);
-    for (int i = 0; i < curproc->children_proc->num; i++) {
+    for (int i = 0; i < (int) curproc->children_proc->num; i++) {
         struct proc *childProc = array_get(curproc->children_proc, i);
         if (childProc->pid == pid) {
             array_remove(curproc->children_proc, i);
@@ -384,28 +383,26 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
         }
     }
     lock_release(curproc->children_proc_lock);
-    *retval = child_pid->pid;
+    *retval = child_pid->curproc_pid;
     return 0;
 }
 
 int _exit(int exitcode){
-    int curIndex = curproc->pid - 1;
     struct pid *curpid = get_struct_pid_by_pid(curproc->pid);
     while(curproc->children_proc->num > 0){
         struct proc *child = array_get(curproc->children_proc, 0);
-        int childIndex = child->pid - 1;
         struct pid *childpid = get_struct_pid_by_pid(child->pid);
-        if(childpid->EXIT == true){
+        if(childpid->Exit == true){
             proc_destroy(child);
         }else{
             childpid->ppid = -1;
         }
         array_remove(curproc->children_proc, 0);
     }
-    curpid->EXIT = true;
+    curpid->Exit = true;
     curpid->exit_status = exitcode;
     V(curpid->EXIT_SEM);
-    thraed_exit();
+    thread_exit();
 }
 
 int getpid(int *retval){

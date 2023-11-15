@@ -8,11 +8,11 @@
 #include <vnode.h>
 #include <synch.h>
 
-struct pid_table * pt_create(void){
+struct pid_table *pt_create(){
     struct pid_table *pt = kmalloc(sizeof(pid_table));
 
 	pt->ptable_lock  = lock_create("pid_table_lock");
-	if (pid_table_lock == NULL) {
+	if (pt->ptable_lock == NULL) {
         kfree(pt);
 		panic("failed to create pid table lock\n");
 	}
