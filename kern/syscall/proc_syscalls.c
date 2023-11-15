@@ -39,8 +39,6 @@ int fork(struct trapframe *tf, int *retval){
         return ENPROC;
     }
 
-    array_add(curproc->children_proc, child_proc, NULL);
-
     //copy address_space
     result = as_copy(curproc->p_addrspace, &child_proc->p_addrspace);
     if (result) {
@@ -77,6 +75,8 @@ int fork(struct trapframe *tf, int *retval){
         proc_destroy(child_proc);
         return result;
     }
+
+    array_add(curproc->children_proc, child_proc, NULL);
 
     //return
     *retval = child_proc->pid;
@@ -373,35 +373,43 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
         }
     }
 
-    lock_acquire(curproc->children_proc_lock);
-    for (int i = 0; i < (int) curproc->children_proc->num; i++) {
-        struct proc *childProc = array_get(curproc->children_proc, i);
-        if (childProc->pid == pid) {
-            array_remove(curproc->children_proc, i);
-            proc_destroy(childProc);
-            break;
-        }
-    }
-    lock_release(curproc->children_proc_lock);
+    // lock_acquire(curproc->children_proc_lock);
+    // for (int i = 0; i < (int) curproc->children_proc->num; i++) {
+    //     struct proc *childProc = array_get(curproc->children_proc, i);
+    //     if (childProc->pid == pid) {
+    //         array_remove(curproc->children_proc, i);
+    //         proc_destroy(childProc);
+    //         break;
+    //     }
+    // }
+    // lock_release(curproc->children_proc_lock);
     *retval = child_pid->curproc_pid;
     return 0;
 }
 
 int _exit(int exitcode){
-    struct pid *curpid = get_struct_pid_by_pid(curproc->pid);
+    
+    // deal with waitpid Scenario 3: Parent exits before the child exits
     while(curproc->children_proc->num > 0){
+        lock_acquire(curproc->children_proc_lock);
         struct proc *child = array_get(curproc->children_proc, 0);
-        struct pid *childpid = get_struct_pid_by_pid(child->pid);
-        if(childpid->Exit == true){
+        lock_pid_table();
+        struct pid *child_pid = get_struct_pid_by_pid(child->pid);
+        if(child_pid->Exit == true){
             proc_destroy(child);
         }else{
-            childpid->ppid = -1;
+            child_pid->ppid = -1;
         }
+        unlock_pid_table();
         array_remove(curproc->children_proc, 0);
+        lock_release(curproc->children_proc_lock);
     }
+    lock_pid_table();
+    struct pid *curpid = get_struct_pid_by_pid(curproc->pid);
     curpid->Exit = true;
     curpid->exit_status = exitcode;
     V(curpid->EXIT_SEM);
+    unlock_pid_table();
     thread_exit();
 }
 

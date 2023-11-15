@@ -392,3 +392,11 @@ struct pid* get_struct_pid_by_pid(int pid){
 	lock_release(pt->ptable_lock);
 	return return_pid;
 }
+
+void lock_pid_table(){
+	lock_acquire(pt->ptable_lock);
+}
+
+void unlock_pid_table(){
+	lock_release(pt->ptable_lock);
+}
