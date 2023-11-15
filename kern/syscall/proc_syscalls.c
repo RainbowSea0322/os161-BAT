@@ -142,7 +142,7 @@ int execv(const char *program, char **args){
             kfree(arg_pointers);
             return ENOMEM;
         }
-        err = copyinstr((userptr_t) args[i], arg_pointers[i], sizeof(char), NULL);
+        err = copyinstr((userptr_t) args[i], arg_pointers[i], sizeof(char) * cur_arg_length, NULL);
         if (err) {
             kfree(program_copy);
             // free all previous argument contents
@@ -153,9 +153,9 @@ int execv(const char *program, char **args){
         // increase buffer size by aligned argument length
         int num_stack_blocks;
         if (cur_arg_length % 4 == 0) {
-            num_stack_blocks = cur_arg_length/4;
+            num_stack_blocks = cur_arg_length;
         } else {
-            num_stack_blocks = cur_arg_length/4 + 1;
+            num_stack_blocks = cur_arg_length + 4;
         }
 
         stack_space_needed += num_stack_blocks;
@@ -212,7 +212,7 @@ int execv(const char *program, char **args){
     for (int i = 0; i < num_arg; i++) {
         // copy argument string to user stack
         int cur_arg_length = strlen(arg_pointers[i]) + 1;
-        err = copyoutstr(arg_pointers[i], (userptr_t) sp, cur_arg_length, NULL);
+        err = copyoutstr(arg_pointers[i], (userptr_t) sp, cur_arg_length , NULL);
         if (err) {
             free_arg_pointers(arg_pointers, num_arg);
             revert_as(old_as, new_as);
@@ -226,9 +226,9 @@ int execv(const char *program, char **args){
         // need 4 bytes alignments on stack
         int num_stack_blocks;
         if (cur_arg_length % 4 == 0) {
-            num_stack_blocks = cur_arg_length/4;
+            num_stack_blocks = cur_arg_length;
         } else {
-            num_stack_blocks = cur_arg_length/4 + 1;
+            num_stack_blocks = cur_arg_length + 4;
         }
 
         sp += num_stack_blocks;
@@ -244,7 +244,7 @@ int execv(const char *program, char **args){
     sp -= (num_arg + 1) * (sizeof(char *)); // move sp to top of stack, extra 1 for the NULL terminator
 
     for (int i = 0; i < num_arg + 1; i++) {
-        err = copyout(&arg_pointers_user[i], (userptr_t) sp, sizeof(char *));
+        err = copyout(&(arg_pointers_user[i]), (userptr_t) sp, sizeof(char *));
         if (err) {
             revert_as(old_as, new_as);
             kfree(arg_pointers_user);
