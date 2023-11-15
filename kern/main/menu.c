@@ -41,6 +41,7 @@
 #include <sfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <proc.h>
 #include "opt-synchprobs.h"
 #include "opt-sfs.h"
 #include "opt-net.h"
@@ -136,6 +137,9 @@ common_prog(int nargs, char **args)
 		proc_destroy(proc);
 		return result;
 	}
+
+	struct pid* cur_pid = get_struct_pid_by_pid(proc->pid);
+	P(cur_pid->EXIT_SEM);
 
 	/*
 	 * The new process will be destroyed when the program exits...
