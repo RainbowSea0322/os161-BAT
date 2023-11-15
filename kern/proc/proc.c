@@ -178,15 +178,6 @@ proc_destroy(struct proc *proc)
 	lock_release(pt->ptable_lock);
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
-
-	lock_acquire(proc->ft->file_table_lock);
-	// decrement refcount in openfile when we destroy this proc
-	for (int i = 0; i < OPEN_MAX; i++) {
-		if (proc->ft->table[i] != NULL) {
-			of_decref(proc->ft->table[i]);
-		}
-	}
-	lock_release(proc->ft->file_table_lock);
 	ft_destroy(proc->ft);
 	array_destroy(proc->children_proc);
 	lock_destroy(proc->children_proc_lock);
@@ -273,6 +264,7 @@ proc_create_runprogram(const char *name)
 			pt->ptable[i]->exit_status = 0;
 			pt->ptable[i]->EXIT_SEM = sem_create("exit semaphore", 0);
 			newproc->pid = i + 1;
+			break;
 		}else if (i == PID_MAX){
 			lock_release(pt->ptable_lock);
 			return NULL;
