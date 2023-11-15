@@ -155,7 +155,7 @@ int execv(const char *program, char **args){
         if (cur_arg_length % 4 == 0) {
             num_stack_blocks = cur_arg_length;
         } else {
-            num_stack_blocks = cur_arg_length + 4;
+            num_stack_blocks = (cur_arg_length/4 + 1) * 4;
         }
 
         stack_space_needed += num_stack_blocks;
@@ -180,7 +180,7 @@ int execv(const char *program, char **args){
     struct addrspace *old_as = proc_setas(new_as);
     as_activate();
 
-    vaddr_t pc;
+    vaddr_t pc; // entrypoint of new process
     err = load_elf(program_vnode, &pc);
     if (err) {
         free_arg_pointers(arg_pointers, num_arg);
@@ -189,7 +189,7 @@ int execv(const char *program, char **args){
         return err;
     }
 
-    // use define_stack() get a USERSTACK pointer
+    // use as_define_stack() get a USERSTACK pointer
     vaddr_t sp;
     err = as_define_stack(new_as, &sp);
     if (err) {
@@ -211,7 +211,7 @@ int execv(const char *program, char **args){
     // 4. copy out arguments to user stack
     for (int i = 0; i < num_arg; i++) {
         // copy argument string to user stack
-        int cur_arg_length = strlen(arg_pointers[i]) + 1;
+        int cur_arg_length = strlen(arg_pointers[i]) + 1; // + 1 for the NULL terminator at the end
         err = copyoutstr(arg_pointers[i], (userptr_t) sp, cur_arg_length , NULL);
         if (err) {
             free_arg_pointers(arg_pointers, num_arg);
@@ -228,7 +228,7 @@ int execv(const char *program, char **args){
         if (cur_arg_length % 4 == 0) {
             num_stack_blocks = cur_arg_length;
         } else {
-            num_stack_blocks = cur_arg_length + 4;
+            num_stack_blocks = (cur_arg_length/4 + 1) * 4;
         }
 
         sp += num_stack_blocks;
