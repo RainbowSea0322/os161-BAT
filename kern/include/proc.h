@@ -101,8 +101,4 @@ struct addrspace *proc_setas(struct addrspace *);
 
 struct pid* get_struct_pid_by_pid(int pid);
 
-void lock_pid_table(void);
-
-void unlock_pid_table(void);
-
 #endif /* _PROC_H_ */

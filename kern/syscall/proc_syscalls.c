@@ -393,23 +393,19 @@ int _exit(int exitcode){
     while(curproc->children_proc->num > 0){
         lock_acquire(curproc->children_proc_lock);
         struct proc *child = array_get(curproc->children_proc, 0);
-        lock_pid_table();
         struct pid *child_pid = get_struct_pid_by_pid(child->pid);
         if(child_pid->Exit == true){
             proc_destroy(child);
         }else{
             child_pid->ppid = -1;
         }
-        unlock_pid_table();
         array_remove(curproc->children_proc, 0);
         lock_release(curproc->children_proc_lock);
     }
-    lock_pid_table();
     struct pid *curpid = get_struct_pid_by_pid(curproc->pid);
     curpid->Exit = true;
     curpid->exit_status = exitcode;
     V(curpid->EXIT_SEM);
-    unlock_pid_table();
     thread_exit();
 }
 
