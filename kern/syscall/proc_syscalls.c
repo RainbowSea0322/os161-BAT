@@ -340,7 +340,6 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
     }
 
     struct pid* child_pid = get_struct_pid_by_pid(pid);
-
     // check existence
     if(child_pid == NULL || pid < PID_MIN || pid > PID_MAX){
         return ESRCH;
@@ -364,6 +363,7 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
         *retval = child_pid->curproc_pid;
         return 0;
     }
+    
     P(child_pid->EXIT_SEM);
     if(status != NULL){
         exit_status = child_pid->exit_status;
@@ -373,16 +373,6 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
         }
     }
 
-    // lock_acquire(curproc->children_proc_lock);
-    // for (int i = 0; i < (int) curproc->children_proc->num; i++) {
-    //     struct proc *childProc = array_get(curproc->children_proc, i);
-    //     if (childProc->pid == pid) {
-    //         array_remove(curproc->children_proc, i);
-    //         proc_destroy(childProc);
-    //         break;
-    //     }
-    // }
-    // lock_release(curproc->children_proc_lock);
     *retval = child_pid->curproc_pid;
     return 0;
 }
@@ -397,15 +387,19 @@ int _exit(int exitcode){
         if(child_pid->Exit == true){
             proc_destroy(child);
         }else{
+            lock_pid_table();
             child_pid->ppid = -1;
+            unlock_pid_table();
         }
         array_remove(curproc->children_proc, 0);
         lock_release(curproc->children_proc_lock);
     }
     struct pid *curpid = get_struct_pid_by_pid(curproc->pid);
+    lock_pid_table();
     curpid->Exit = true;
     curpid->exit_status = exitcode;
     V(curpid->EXIT_SEM);
+    unlock_pid_table();
     thread_exit();
 }
 
