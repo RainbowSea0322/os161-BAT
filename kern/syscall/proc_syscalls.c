@@ -267,7 +267,7 @@ int execv(const char *program, char **args){
 int check_argument_validity_execv(char ** args) {
     int err;
 
-    // check args it self is a valid pointer 
+    // check args points to a valid user space
     char **args_check = kmalloc(sizeof(char*));
     if (args_check == NULL) {
         return ENOMEM;
@@ -279,7 +279,7 @@ int check_argument_validity_execv(char ** args) {
     }
     kfree(args_check);
 
-    // check argument pointer is valid
+    // check argument number is within boundary
     int num_arg;
     // keep counting up until hit the NULL
     for (num_arg = 0; args[num_arg] != NULL; num_arg++);
@@ -288,10 +288,12 @@ int check_argument_validity_execv(char ** args) {
         return E2BIG;
     }
 
+    // check every argument pointer lives in a valid user space
     char **arg_pointers_check = kmalloc(sizeof(char*) * num_arg);
     if (arg_pointers_check == NULL) {
         return ENOMEM;
     }
+    // check every argument lives in a valid user sapce as well
     char *arg_check = kmalloc(sizeof(char) * ARG_MAX);
     if (arg_check == NULL) {
         kfree(arg_pointers_check);
@@ -299,7 +301,7 @@ int check_argument_validity_execv(char ** args) {
     }
     for (int i = 0; i < num_arg; i++) {
         // check argument pointer validity
-        err = copyin((userptr_t) args + sizeof(char *) * i, arg_pointers_check + sizeof(char *) * i, sizeof(char*));
+        err = copyin((userptr_t) &(args[i]), &(arg_pointers_check[i]), sizeof(char*));
         if (err) {
             kfree(arg_check);
             kfree(arg_pointers_check);
