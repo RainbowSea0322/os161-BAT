@@ -128,7 +128,7 @@ int execv(const char *program, char **args){
     // 2.b.(3) actaully copy the argument pointers and arguments to kernel (modify the pointer to be kernel pointer actually pointing to the kernel stack)
     for (int i = 0; i < num_arg; i++) {
         // copy the argument pointers to arg_pointers[0, num_arg]
-        copyin((userptr_t) args + i * sizeof(char *), arg_pointers + i * sizeof(char *), sizeof(char*));
+        copyin((userptr_t) &args[i], &arg_pointers[i], sizeof(char*));
 
         // copy the actual arguments to arg_array
         // a. create space to store the argument
@@ -139,6 +139,7 @@ int execv(const char *program, char **args){
         arg_pointers[i] = kmalloc(sizeof(char) * cur_arg_length);
         if (arg_pointers[i] == NULL) {
             kfree(program_copy);
+            free_arg_pointers(arg_pointers, i);
             kfree(arg_pointers);
             return ENOMEM;
         }
@@ -147,6 +148,7 @@ int execv(const char *program, char **args){
             kfree(program_copy);
             // free all previous argument contents
             free_arg_pointers(arg_pointers, i + 1);
+            kfree(arg_pointers);
             return err;
         }
 
@@ -166,6 +168,7 @@ int execv(const char *program, char **args){
     err = vfs_open(program_copy, O_RDONLY, 0, &program_vnode);  // char *path, int openflags, mode_t mode(meaningless as we are linux like system), struct vnode **ret
     if (err) {
         free_arg_pointers(arg_pointers, num_arg);
+        kfree(arg_pointers);
         kfree(program_copy);
         return err;
     }
@@ -174,6 +177,7 @@ int execv(const char *program, char **args){
     struct addrspace *new_as = as_create();
     if (new_as == NULL) {
         free_arg_pointers(arg_pointers, num_arg);
+        kfree(arg_pointers);
         return ENOMEM;
     }
 
@@ -184,6 +188,7 @@ int execv(const char *program, char **args){
     err = load_elf(program_vnode, &pc);
     if (err) {
         free_arg_pointers(arg_pointers, num_arg);
+        kfree(arg_pointers);
         // revert address space change
         revert_as(old_as, new_as);
         return err;
@@ -194,6 +199,7 @@ int execv(const char *program, char **args){
     err = as_define_stack(new_as, &sp);
     if (err) {
         free_arg_pointers(arg_pointers, num_arg);
+        kfree(arg_pointers);
         revert_as(old_as, new_as);
         return err;
     }
@@ -215,6 +221,7 @@ int execv(const char *program, char **args){
         err = copyoutstr(arg_pointers[i], (userptr_t) sp, cur_arg_length , NULL);
         if (err) {
             free_arg_pointers(arg_pointers, num_arg);
+            kfree(arg_pointers);
             revert_as(old_as, new_as);
             kfree(arg_pointers_user);
             return err;
@@ -234,6 +241,7 @@ int execv(const char *program, char **args){
         sp += num_stack_blocks;
     }
     free_arg_pointers(arg_pointers, num_arg);
+    kfree(arg_pointers);
 
     // make sure arg_pointers_user[num_arg] is NULL 
     arg_pointers_user[num_arg] = NULL;
@@ -293,7 +301,7 @@ int check_argument_validity_execv(char ** args) {
     if (arg_pointers_check == NULL) {
         return ENOMEM;
     }
-    // check every argument lives in a valid user sapce as well
+    // check every argument lives in a valid user space
     char *arg_check = kmalloc(sizeof(char) * ARG_MAX);
     if (arg_check == NULL) {
         kfree(arg_pointers_check);
@@ -327,7 +335,6 @@ void free_arg_pointers(char **arg_pointers, int end_index) {
     for(int i = 0; i < end_index; i++){
         kfree(arg_pointers[i]);
     }
-    kfree(arg_pointers);
 }
 
 void revert_as(struct addrspace *old_as, struct addrspace *new_as) {
