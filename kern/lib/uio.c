@@ -163,3 +163,19 @@ uio_kinit(struct iovec *iov, struct uio *u,
 	u->uio_rw = rw;
 	u->uio_space = NULL;
 }
+
+// uio init for user program
+void
+uio_user_init(struct iovec *iov, struct uio *u,
+	  userptr_t ubuf, size_t len, off_t pos, enum uio_rw rw)
+{
+	iov->iov_ubase = ubuf;
+	iov->iov_len = len;
+	u->uio_iov = iov;
+	u->uio_iovcnt = 1;
+	u->uio_offset = pos;
+	u->uio_resid = len;
+	u->uio_segflg = UIO_USERSPACE; // use for userspace
+	u->uio_rw = rw; 
+	u->uio_space = proc_getas(); // user program address space
+}

@@ -95,7 +95,6 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     int result; 
     struct iovec *iov;
     struct uio *uio;
-    char *kernel_buf;
     size_t *actual_len;
 
     // check fd valid
@@ -124,12 +123,6 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     lock_acquire(of->file_lock);
     lock_release(curproc->ft->file_table_lock);
 
-    kernel_buf = kmalloc(buflen);
-    if (kernel_buf == NULL) {
-        lock_release(of->file_lock);
-        *retval = -1;
-        return ENOSPC;
-    }
     actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
         lock_release(of->file_lock);
@@ -139,8 +132,7 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
 
     iov = kmalloc(sizeof(struct iovec));
     if (iov == NULL) {
-        lock_release(of->file_lock);
-        kfree(kernel_buf);
+        lock_release(of->file_lock);;
         kfree(actual_len);
         *retval = -1;
         return ENOSPC;
@@ -149,19 +141,17 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
     uio = kmalloc(sizeof(struct uio));
     if (uio == NULL) {
         lock_release(of->file_lock);
-        kfree(kernel_buf);
         kfree(actual_len);
         kfree(iov);
         *retval = -1;
         return ENOSPC;
     }
-    // struct iovec *, struct uio *, void *kbuf, size_t len, off_t pos, enum uio_rw rw
-    uio_kinit(iov, uio, kernel_buf, buflen, of->offset, UIO_READ);
+    // struct iovec *, struct uio *, userptr_t *ubuf, size_t len, off_t pos, enum uio_rw rw
+    uio_user_init(iov, uio, (userptr_t) buf, buflen, of->offset, UIO_READ);
 
     result = VOP_READ(of->vn, uio);
     if (result) { // false to VOP_READ
         lock_release(of->file_lock);
-        kfree(kernel_buf);
         kfree(actual_len);
         kfree(iov);
         kfree(uio);
@@ -169,23 +159,11 @@ ssize_t read(int fd, void *buf, size_t buflen, int *retval){
         return result;
     }
 
-    // const void *src, userptr_t userdest, size_t len)
-    result = copyout((void *)kernel_buf, (userptr_t)buf, buflen);
-    if (result) {
-        lock_release(of->file_lock);
-        kfree(kernel_buf);
-        kfree(actual_len);
-        kfree(iov);
-        kfree(uio);
-        *retval = -1;
-        return result;
-    }
     // calculate size of actual reading size
     *retval = (uio->uio_offset) - (of->offset);
     // synchronize open file offset
     of->offset = uio->uio_offset;
     lock_release(of->file_lock);
-    kfree(kernel_buf);
     kfree(actual_len);
     kfree(iov);
     kfree(uio);
@@ -197,7 +175,6 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
     int result; 
     struct iovec *iov;
     struct uio *uio;
-    char *kernel_buf;
     size_t *actual_len;
     // check fd valid
     if(fd < 0 || fd >= OPEN_MAX){
@@ -223,35 +200,16 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
     lock_acquire(of->file_lock);
     lock_release(curproc->ft->file_table_lock);
     
-    kernel_buf = kmalloc(nbytes);
-    if (kernel_buf == NULL) {
-        lock_release(of->file_lock);
-        *retval = -1;
-        return ENOSPC;
-    }
     actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
         lock_release(of->file_lock);
-        kfree(kernel_buf);
         *retval = -1;
         return ENOSPC;
-    }
-
-    // const_userptr_t usersrc, void *dest, size_t len
-    result = copyin((const_userptr_t)buf, (void *)kernel_buf, nbytes);
-
-    if (result) {
-        lock_release(of->file_lock);
-        kfree(kernel_buf);
-        kfree(actual_len);
-        *retval = -1;
-        return result;
     }
 
     iov = kmalloc(sizeof(struct iovec));
     if (iov == NULL) {
         lock_release(of->file_lock);
-        kfree(kernel_buf);
         kfree(actual_len);
         *retval = -1;
         return ENOSPC;
@@ -260,18 +218,17 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
     uio = kmalloc(sizeof(struct uio));
     if (uio == NULL) {
         lock_release(of->file_lock);
-        kfree(kernel_buf);
         kfree(actual_len);
         kfree(iov);
         *retval = -1;
         return ENOSPC;
     }
-    // struct iovec *, struct uio *, void *kbuf, size_t len, off_t pos, enum uio_rw rw
-    uio_kinit(iov, uio, kernel_buf, nbytes, of->offset, UIO_WRITE);
+    // struct iovec *, struct uio *, userptr_t *ubuf, size_t len, off_t pos, enum uio_rw rw
+    uio_user_init(iov, uio, (userptr_t)buf, nbytes, of->offset, UIO_WRITE);
+
     result = VOP_WRITE(of->vn, uio);
     if (result) {//fail to VOP_WRITE
         lock_release(of->file_lock);
-        kfree(kernel_buf);
         kfree(actual_len);
         kfree(iov);
         kfree(uio);
@@ -282,7 +239,6 @@ ssize_t write(int fd, const void *buf, size_t nbytes, int *retval){
     *retval = (uio->uio_offset) - (of->offset);
     of->offset = uio->uio_offset;
     lock_release(of->file_lock);
-    kfree(kernel_buf);
     kfree(actual_len);
     kfree(iov);
     kfree(uio);
@@ -489,38 +445,29 @@ int dup2(int oldfd, int newfd, int *retval){
 int __getcwd(char *buf, size_t buflen, int *retval){
     struct uio *uio;
     struct iovec *iov;
-    char *kernel_buf; 
     off_t pos = 0;
     size_t *actual_len;
     int result;
 
-    kernel_buf = kmalloc(buflen);
-    if (kernel_buf == NULL) {
-        *retval = -1;
-        return ENOSPC;
-    }
-
     iov = kmalloc(sizeof(struct iovec));
     if (iov == NULL) {
-        kfree(kernel_buf);
         *retval = -1;
         return ENOSPC;
     }
 
     uio = kmalloc(sizeof(struct uio));
     if (uio == NULL) {
-        kfree(kernel_buf);
         kfree(iov);
         *retval = -1;
         return ENOSPC;
     }
 
-    // struct iovec *, struct uio *, void *kbuf, size_t len, off_t pos, enum uio_rw rw
-    uio_kinit(iov, uio, kernel_buf, buflen, pos, UIO_READ);
+    // struct iovec *, struct uio *, userptr_t *ubuf, size_t len, off_t pos, enum uio_rw rw
+    uio_user_init(iov, uio, (userptr_t)buf, buflen, pos, UIO_READ);
+
     // struct uio *uio
     result = vfs_getcwd(uio);
     if (result) {
-        kfree(kernel_buf);
         kfree(iov);
         kfree(uio);
         *retval = -1;
@@ -529,24 +476,13 @@ int __getcwd(char *buf, size_t buflen, int *retval){
 
     actual_len = kmalloc(sizeof(size_t));
     if (actual_len == NULL) {
-        kfree(kernel_buf);
         kfree(iov);
         kfree(uio);
         *retval = -1;
         return ENOSPC;
     }
-    // const void *src, userptr_t userdest, size_t len, size_t *actual
-    result = copyoutstr((void *)kernel_buf, (userptr_t)buf, buflen, actual_len);
-    if (result) {
-        kfree(kernel_buf);
-        kfree(iov);
-        kfree(uio);
-        kfree(actual_len);
-        *retval = -1;
-         return result;
-    }
+    
     *retval = *actual_len;
-    kfree(kernel_buf);
     kfree(iov);
     kfree(uio);
     kfree(actual_len);
