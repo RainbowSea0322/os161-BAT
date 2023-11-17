@@ -446,7 +446,7 @@ int __getcwd(char *buf, size_t buflen, int *retval){
     struct uio *uio;
     struct iovec *iov;
     off_t pos = 0;
-    size_t *actual_len;
+    // size_t *actual_len;
     int result;
 
     iov = kmalloc(sizeof(struct iovec));
@@ -474,17 +474,28 @@ int __getcwd(char *buf, size_t buflen, int *retval){
         return result;
     }
 
-    actual_len = kmalloc(sizeof(size_t));
-    if (actual_len == NULL) {
-        kfree(iov);
-        kfree(uio);
-        *retval = -1;
-        return ENOSPC;
-    }
+    // actual_len = kmalloc(sizeof(size_t));
+    // if (actual_len == NULL) {
+    //     kfree(iov);
+    //     kfree(uio);
+    //     *retval = -1;
+    //     return ENOSPC;
+    // }
+    // const void *src, userptr_t userdest, size_t len, size_t *actual
+    // result = copyoutstr((void *)actual_len, (userptr_t)buf, buflen, actual_len);
+    // if (result) {
+    //     kfree(kernel_buf);
+    //     kfree(iov);
+    //     kfree(uio);
+    //     kfree(actual_len);
+    //     *retval = -1;
+    //      return result;
+    // }
     
-    *retval = *actual_len;
+    *retval = strlen(buf);
+    // kfree(kernel_buf);
     kfree(iov);
     kfree(uio);
-    kfree(actual_len);
+    // kfree(actual_len);
     return 0;
 }

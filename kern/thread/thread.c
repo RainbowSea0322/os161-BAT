@@ -808,6 +808,11 @@ thread_exit(void)
 	/* Interrupts off on this processor */
         splhigh();
 	thread_switch(S_ZOMBIE, NULL, NULL);
+
+	struct pid *cur_pid = get_struct_pid_by_pid(curproc->pid);
+	if(cur_pid->ppid == -1){
+		proc_destroy(curproc);
+	}
 	panic("braaaaaaaiiiiiiiiiiinssssss\n");
 }
 

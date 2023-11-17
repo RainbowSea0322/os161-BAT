@@ -143,7 +143,7 @@ int execv(const char *program, char **args){
             kfree(arg_pointers);
             return ENOMEM;
         }
-        err = copyinstr((userptr_t) args[i], arg_pointers[i], sizeof(char) * cur_arg_length, NULL);
+        err = copyinstr((userptr_t) args[i], arg_pointers[i], cur_arg_length, NULL);
         if (err) {
             kfree(program_copy);
             // free all previous argument contents
@@ -317,7 +317,7 @@ int check_argument_validity_execv(char ** args) {
         }
 
         // check argument validity
-        err = copyinstr((userptr_t) args[i], arg_check, sizeof(char) * ARG_MAX, NULL);
+        err = copyinstr((userptr_t) args[i], arg_check, ARG_MAX, NULL);
         if (err) {
             kfree(arg_check);
             kfree(arg_pointers_check);
@@ -366,7 +366,7 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
             exit_status = child_pid->exit_status;
             result = copyout(&exit_status, status, sizeof(int));
             if (result) {
-                return EFAULT;
+                return result;
             }
         }
         *retval = child_pid->curproc_pid;
@@ -378,7 +378,7 @@ int waitpid(int pid, userptr_t status, int options, int *retval){
         exit_status = child_pid->exit_status;
         result = copyout(&exit_status, status, sizeof(int));
         if (result) {
-            return EFAULT;
+            return result;
         }
     }
 
