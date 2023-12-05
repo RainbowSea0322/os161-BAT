@@ -38,7 +38,22 @@ static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 void
 vm_bootstrap(void)
 {
-	/* Do nothing. */
+	paddr_t first_paddr = ram_getfirstfree();
+	cm_paddr = first_paddr - first_paddr % PAGE_SIZE + PAGE_SIZE;
+	coremap = (struct cm_entry *)PADDR_TO_KVADDR(coremap_addr);
+
+	paddr_t last_paddr = ram_getsize();
+	total_pages = ((last_paddr - first_paddr) / PAGE_SIZE) + 1;
+	int cm_page = (total_pages * sizeof(struct cm_entry) / PAGE_SIZE) + 1;
+
+	for(int i = 0; i < total_pages; i++){
+		if (i < cm_page){
+			coremap[i].ALLOCATE = true;
+		} else {
+			coremap[i].ALLOCATE = false;
+		}		
+	}
+	cm_ready = true;
 }
 
 static
@@ -59,12 +74,25 @@ getppages(unsigned long npages)
 vaddr_t
 alloc_kpages(unsigned npages)
 {
-	paddr_t pa;
-	pa = getppages(npages);
-	if (pa==0) {
-		return 0;
+
+	if(cm_ready){
+		paddr_t pa;
+		spinlock_acquire(cm_spinlock);
+		
+		spinlock_release(cm_spinlock);
+		return PADDR_TO_KVADDR(pa);
+	}else{
+		paddr_t pa;
+		spinlock_acquire(cm_spinlock);
+		pa = getppages(npages);
+		spinlock_release(cm_spinlock);
+		if (pa==0) {
+			return 0;
+		}
+		return PADDR_TO_KVADDR(pa);
 	}
-	return PADDR_TO_KVADDR(pa);
+
+	panic("alloc_incorrect");
 }
 
 void// TODO finish it

@@ -3,10 +3,12 @@
 #include <machine/vm.h>
 #include <addrspace.h>
 
-bool ready = false;
+bool cm_ready = false;
 struct cm_entry *coremap;
 paddr_t cm_paddr;
+
 static struct spinlock cm_spinlock = SPINLOCK_INITIALIZER;
+
 int total_pages;
 
 struct cm_entry {
