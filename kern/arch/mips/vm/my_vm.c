@@ -29,7 +29,8 @@
 /* under dumbvm, always have 72k of user stack */
 /* (this must be > 64K so argument blocks of size ARG_MAX will fit) */
 #define PAGE_SIZE 4096
-//TODO find why this is dum
+#define DUMBVM_STACKPAGES    18//for vm_fault compile
+
 /*
  * Wrap ram_stealmem in a spinlock.
  */
@@ -40,7 +41,7 @@ vm_bootstrap(void)
 {
 	paddr_t first_paddr = ram_getfirstfree();
 	cm_paddr = first_paddr - first_paddr % PAGE_SIZE + PAGE_SIZE;
-	coremap = (struct cm_entry *)PADDR_TO_KVADDR(coremap_addr);
+	coremap = (struct cm_entry *)PADDR_TO_KVADDR(cm_paddr);
 
 	paddr_t last_paddr = ram_getsize();
 	total_pages = ((last_paddr - first_paddr) / PAGE_SIZE) + 1;
@@ -77,15 +78,48 @@ alloc_kpages(unsigned npages)
 
 	if(cm_ready){
 		paddr_t pa;
-		spinlock_acquire(cm_spinlock);
-		
-		spinlock_release(cm_spinlock);
-		return PADDR_TO_KVADDR(pa);
+		spinlock_acquire(&cm_spinlock);
+		unsigned pages = 0;
+		bool start = false;
+		int find_page = -1;
+		for(int i = 0; i < total_pages; i++){
+			if(!coremap[i].ALLOCATE && !start){
+				pages++;
+				start = true;
+				find_page = i;
+			}else if(!coremap[i].ALLOCATE && start){
+				pages++;
+			}else{
+				pages = 0;
+				start = false;
+				find_page = -1;
+			}
+
+			if(pages == npages){
+				break;
+			}
+		}
+
+		if(pages != npages || !start){
+			spinlock_release(&cm_spinlock);
+			return 0;
+		}
+
+		pa = cm_paddr + find_page * PAGE_SIZE;
+		va = PADDR_TO_KVADDR(pa);
+		//bzero (void *vblock, size_t len)
+		bzero((void *) va, npages * PAGE_SIZE);
+
+		coremap[find_page].num_pages = (int) npages;
+		coremap[find_page].page_vaddr = va;
+		for(int i = find_page; i < find_page + (int) npages; i++){
+			coremap[i].ALLOCATE = true;
+		}
+		spinlock_release(&cm_spinlock);
+		return va;
 	}else{
 		paddr_t pa;
-		spinlock_acquire(cm_spinlock);
 		pa = getppages(npages);
-		spinlock_release(cm_spinlock);
 		if (pa==0) {
 			return 0;
 		}
@@ -95,12 +129,19 @@ alloc_kpages(unsigned npages)
 	panic("alloc_incorrect");
 }
 
-void// TODO finish it
+void
 free_kpages(vaddr_t addr)
 {
-	/* nothing - leak the memory. */
-
-	(void)addr;
+	spinlock_acquire(&cm_spinlock);
+	for (int i = 0; i < total_pages; i++){
+		if(coremap[i].page_vaddr == addr){
+			for(int j = i; j < coremap[i].num_pages; j++){
+				coremap[j].ALLOCATE = false;
+			}
+			break;
+		}
+	}
+	spinlock_release(&cm_spinlock);
 }
 
 void
