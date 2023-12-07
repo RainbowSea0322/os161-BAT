@@ -88,9 +88,9 @@ getppages(unsigned long npages)
 vaddr_t
 alloc_kpages(unsigned npages)
 {
-	// if (npages == 0 || npages > (unsigned)total_pages) {
-	// 	return 0;
-	// }
+	if (npages == 0 || npages > (unsigned)total_pages) {
+		return 0;
+	}
 	paddr_t pa;
 	vaddr_t va;
 	if(cm_ready){
