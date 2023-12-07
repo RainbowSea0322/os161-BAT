@@ -39,6 +39,8 @@ static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 void
 vm_bootstrap(void)
 {
+
+	paddr_t last_paddr = ram_getsize(); // ram starts at paddr 0
 	paddr_t first_free_paddr = ram_getfirstfree();
 	// check alignment
 	if (first_free_paddr % PAGE_SIZE == 0) {
@@ -48,7 +50,6 @@ vm_bootstrap(void)
 	}
 	coremap = (struct cm_entry *)PADDR_TO_KVADDR(cm_paddr);
 
-	paddr_t last_paddr = ram_getsize(); // ram starts at paddr 0
 
 	total_pages = ((last_paddr - cm_paddr) / PAGE_SIZE); // global variable, round down to total number of complete pages automatically
 
@@ -87,9 +88,9 @@ getppages(unsigned long npages)
 vaddr_t
 alloc_kpages(unsigned npages)
 {
-	if (npages == 0 || npages > (unsigned)total_pages) {
-		return 0;
-	}
+	// if (npages == 0 || npages > (unsigned)total_pages) {
+	// 	return 0;
+	// }
 	paddr_t pa;
 	vaddr_t va;
 	if(cm_ready){
