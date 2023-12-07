@@ -39,19 +39,31 @@ static struct spinlock stealmem_lock = SPINLOCK_INITIALIZER;
 void
 vm_bootstrap(void)
 {
-	paddr_t first_paddr = ram_getfirstfree();
-	cm_paddr = first_paddr - first_paddr % PAGE_SIZE + PAGE_SIZE;
+	paddr_t first_free_paddr = ram_getfirstfree();
+	// check alignment
+	if (first_free_paddr % PAGE_SIZE == 0) {
+		cm_paddr = first_free_paddr;
+	} else {
+		cm_paddr = first_free_paddr - first_free_paddr % PAGE_SIZE + PAGE_SIZE;
+	}
 	coremap = (struct cm_entry *)PADDR_TO_KVADDR(cm_paddr);
 
-	paddr_t last_paddr = ram_getsize();
-	total_pages = ((last_paddr - first_paddr) / PAGE_SIZE) + 1;
-	int cm_page = (total_pages * sizeof(struct cm_entry) / PAGE_SIZE) + 1;
+	paddr_t last_paddr = ram_getsize(); // ram starts at paddr 0
+
+	total_pages = ((last_paddr - cm_paddr) / PAGE_SIZE); // global variable, round down to total number of complete pages automatically
+
+	int cm_pages = (total_pages * sizeof(struct cm_entry) / PAGE_SIZE);
+	if (total_pages * sizeof(struct cm_entry) % PAGE_SIZE != 0) {
+		cm_pages++;
+	}
 
 	for(int i = 0; i < total_pages; i++){
-		if (i < cm_page){
+		if (i < cm_pages){
 			coremap[i].ALLOCATE = true;
+			coremap[i].COREMAP = true;
 		} else {
 			coremap[i].ALLOCATE = false;
+			coremap[i].COREMAP = false;
 		}		
 	}
 	cm_ready = true;
@@ -75,55 +87,61 @@ getppages(unsigned long npages)
 vaddr_t
 alloc_kpages(unsigned npages)
 {
-
+	if (npages == 0 || npages > (unsigned)total_pages) {
+		return 0;
+	}
+	paddr_t pa;
+	vaddr_t va;
 	if(cm_ready){
-		paddr_t pa;
 		spinlock_acquire(&cm_spinlock);
-		unsigned pages = 0;
-		bool start = false;
-		int find_page = -1;
+		unsigned available_pages = 0;
+		int start_page = -1;
 		for(int i = 0; i < total_pages; i++){
-			if(!coremap[i].ALLOCATE && !start){
-				pages++;
-				start = true;
-				find_page = i;
-			}else if(!coremap[i].ALLOCATE && start){
-				pages++;
+			if(!coremap[i].ALLOCATE){
+				if (start_page == -1) {
+					start_page = i;
+					available_pages = 0;
+				}
+				available_pages++;
 			}else{
-				pages = 0;
-				start = false;
-				find_page = -1;
+				available_pages = 0;
+				start_page = -1;
 			}
-
-			if(pages == npages){
+			// got enough available pages, no more searching needed
+			if(available_pages == npages){
 				break;
 			}
 		}
-
-		if(pages != npages || !start){
+		// not enough spaces
+		if(available_pages < npages){
 			spinlock_release(&cm_spinlock);
 			return 0;
 		}
-
-		pa = cm_paddr + find_page * PAGE_SIZE;
+		if(available_pages > npages){
+			spinlock_release(&cm_spinlock);
+			panic("somthing wrong with my searching alogorithm! debug please");
+			return 0;
+		}
+		KASSERT(start_page != -1);
+		pa = cm_paddr + start_page * PAGE_SIZE;
 		va = PADDR_TO_KVADDR(pa);
 		//bzero (void *vblock, size_t len)
 		bzero((void *) va, npages * PAGE_SIZE);
 
-		coremap[find_page].num_pages = (int) npages;
-		coremap[find_page].page_vaddr = va;
-		for(int i = find_page; i < find_page + (int) npages; i++){
+		coremap[start_page].num_pages = (int) npages;
+		coremap[start_page].page_vaddr = va;
+		for(int i = start_page; i < start_page + (int) npages; i++){
 			coremap[i].ALLOCATE = true;
 		}
 		spinlock_release(&cm_spinlock);
 		return va;
 	}else{
-		paddr_t pa;
-		pa = getppages(npages);
+		pa = getppages(npages); // steal ram mem 
+		va = PADDR_TO_KVADDR(pa);
 		if (pa==0) {
 			return 0;
 		}
-		return PADDR_TO_KVADDR(pa);
+		return va;
 	}
 
 	panic("alloc_incorrect");
@@ -135,8 +153,12 @@ free_kpages(vaddr_t addr)
 	spinlock_acquire(&cm_spinlock);
 	for (int i = 0; i < total_pages; i++){
 		if(coremap[i].page_vaddr == addr){
-			for(int j = i; j < coremap[i].num_pages; j++){
-				coremap[j].ALLOCATE = false;
+			if (coremap[i].COREMAP) {
+				panic("can't free core map pages");
+			} else {
+				for(int j = i; j < i + coremap[i].num_pages; j++){
+					coremap[j].ALLOCATE = false;
+				}
 			}
 			break;
 		}
@@ -147,7 +169,13 @@ free_kpages(vaddr_t addr)
 void
 vm_tlbshootdown_all(void)
 {
-	panic("dumbvm tried to do tlb shootdown?!\n");
+	// for (int i = 0; i < total_pages; i++) {
+	// 	if (!coremap[i].COREMAP) {
+	// 		struct tlbshootdown *ts;
+	// 		vm_tlbshootdown(ts)
+	// 	}
+	// }
+	panic("current vm doesn't support tlbshootdown");
 }
 
 

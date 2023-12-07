@@ -15,5 +15,6 @@ struct cm_entry {
     vaddr_t page_vaddr;
     int num_pages;
     bool ALLOCATE;
+    bool COREMAP;
 } cm_entry;
 
