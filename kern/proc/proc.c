@@ -56,7 +56,7 @@
  * The process for the kernel; this holds all the kernel-only threads.
  */
 struct proc *kproc;
-struct pid_table *pt;
+// struct pid_table *pt;
 /*
  * Create a proc structure.
  */
@@ -168,14 +168,14 @@ proc_destroy(struct proc *proc)
 		as_destroy(as);
 	}
 
-	lock_acquire(pt->ptable_lock);
-	int curIndex = (proc->pid) - 1;
-	if(pt->ptable[curIndex] != NULL){
-		sem_destroy(pt->ptable[curIndex]->EXIT_SEM);
-		kfree(pt->ptable[curIndex]);
-		pt->ptable[curIndex] = NULL;
-	}
-	lock_release(pt->ptable_lock);
+	// lock_acquire(pt->ptable_lock);
+	// int curIndex = (proc->pid) - 1;
+	// if(pt->ptable[curIndex] != NULL){
+	// 	sem_destroy(pt->ptable[curIndex]->EXIT_SEM);
+	// 	kfree(pt->ptable[curIndex]);
+	// 	pt->ptable[curIndex] = NULL;
+	// }
+	// lock_release(pt->ptable_lock);
 	threadarray_cleanup(&proc->p_threads);
 	spinlock_cleanup(&proc->p_lock);
 	ft_destroy(proc->ft);
@@ -197,10 +197,10 @@ proc_bootstrap(void)
 		panic("proc_create for kproc failed\n");
 	}
 
-	pt = pt_create();
-	kproc->pid = 1;
-	pt->ptable[0] = kmalloc(sizeof(pid));
-	pt->ptable[0]-> curproc_pid = 1;
+	// pt = pt_create();
+	// kproc->pid = 1;
+	// pt->ptable[0] = kmalloc(sizeof(pid));
+	// pt->ptable[0]-> curproc_pid = 1;
 }
 
 /*
@@ -251,26 +251,26 @@ proc_create_runprogram(const char *name)
 	}
 
 	//edit pid_table  and edit child proc pid
-	lock_acquire(pt->ptable_lock);
-	for(int i = PID_MIN; i < PID_MAX; i++){
-		if (pt->ptable[i] == NULL){
-			pt->ptable[i] = kmalloc(sizeof(pid));
-			if (pt->ptable[i] == NULL) {
-				return 0;
-			}
-			pt->ptable[i]->curproc_pid = i + 1; 
-			pt->ptable[i]->ppid = curproc->pid; 
-			pt->ptable[i]->Exit = false; 
-			pt->ptable[i]->exit_status = 0;
-			pt->ptable[i]->EXIT_SEM = sem_create("exit semaphore", 0);
-			newproc->pid = i + 1;
-			break;
-		}else if (i == PID_MAX){
-			lock_release(pt->ptable_lock);
-			return NULL;
-		}
-	}
-	lock_release(pt->ptable_lock);
+	// lock_acquire(pt->ptable_lock);
+	// for(int i = PID_MIN; i < PID_MAX; i++){
+	// 	if (pt->ptable[i] == NULL){
+	// 		pt->ptable[i] = kmalloc(sizeof(pid));
+	// 		if (pt->ptable[i] == NULL) {
+	// 			return 0;
+	// 		}
+	// 		pt->ptable[i]->curproc_pid = i + 1; 
+	// 		pt->ptable[i]->ppid = curproc->pid; 
+	// 		pt->ptable[i]->Exit = false; 
+	// 		pt->ptable[i]->exit_status = 0;
+	// 		pt->ptable[i]->EXIT_SEM = sem_create("exit semaphore", 0);
+	// 		newproc->pid = i + 1;
+	// 		break;
+	// 	}else if (i == PID_MAX){
+	// 		lock_release(pt->ptable_lock);
+	// 		return NULL;
+	// 	}
+	// }
+	// lock_release(pt->ptable_lock);
 	newproc->children_proc = array_create();
 	newproc->children_proc_lock = lock_create("children_proc_lock");
 	return newproc;
@@ -386,17 +386,19 @@ proc_setas(struct addrspace *newas)
 }
 
 struct pid* get_struct_pid_by_pid(int pid){
-	lock_acquire(pt->ptable_lock);
-	int curIndex = pid - 1;
-	struct pid* return_pid = pt->ptable[curIndex];
-	lock_release(pt->ptable_lock);
-	return return_pid;
+	// lock_acquire(pt->ptable_lock);
+	// int curIndex = pid - 1;
+	// struct pid* return_pid = pt->ptable[curIndex];
+	// lock_release(pt->ptable_lock);
+	// return return_pid;
+	(void) pid;
+	return 0;
 }
 
 void lock_pid_table() {
-	lock_acquire(pt->ptable_lock);
+	// lock_acquire(pt->ptable_lock);
 }
 
 void unlock_pid_table() {
-	lock_release(pt->ptable_lock);
+	// lock_release(pt->ptable_lock);
 }
